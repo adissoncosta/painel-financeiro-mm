@@ -212,7 +212,19 @@ header{padding:16px}
 <button id="btnPrintAll">Imprimir tudo em A4</button>
 <button id="btnPrintSup">Imprimir por diretoria / supervisão</button>
 <button class="sec" id="btnExcel">Baixar em Excel</button>
+<button id="btnPub">Publicar no link</button>
 <span id="info" style="font-size:12.5px;color:var(--cinza)"></span>
+</div>
+<div class="card hide" id="cardPub">
+<h3>Publicar para quem tem o link</h3>
+<div id="pubStatus" class="note" style="margin:0 0 10px"></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<label>Token do GitHub</label><input type="password" id="pubToken" placeholder="github_pat_..." style="min-width:260px;max-width:100%">
+<button id="btnPubGo">Publicar este extrato</button>
+<button class="sec" id="btnPubCopy">Copiar o link</button>
+</div>
+<div id="pubLink" style="margin-top:10px;word-break:break-all;font-size:13px"></div>
+<div class="note">Os dados são enviados <b>criptografados</b> (AES-256) para o repositório: quem abrir o site sem a chave vê apenas um arquivo ilegível. A chave fica no próprio link, depois do <b>#</b>, e essa parte nunca é enviada ao GitHub. Os saldos iniciais informados também são publicados. O token fica salvo só neste navegador; crie-o em GitHub → Settings → Developer settings → Fine-grained tokens, com acesso apenas ao repositório <b>painel-financeiro-mm</b> e permissão <b>Contents: Read and write</b>. Depois de publicar, a atualização aparece para todos em 1–2 minutos.</div>
 </div>
 <div class="card hide" id="cardSaldos">
 <h3>Saldos informados em 31/12 do ano anterior (âncora)</h3>
@@ -1683,7 +1695,9 @@ const mm=[document.getElementById("m1"),document.getElementById("m2")];
 mm.forEach(s=>{ s.innerHTML=""; MESES_LONGO.forEach((n,i)=>{ const o=el("option",null,n); o.value=i+1; s.appendChild(o); }); });
 mm[0].value=1; mm[1].value=12;
 const salvo=localStorage.getItem("mm_saldos");
-SALDOS=Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
+SALDOS=res.saldos?Object.assign({},SALDOS_PADRAO,res.saldos):Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
+if(res.saldos) localStorage.setItem("mm_saldos",JSON.stringify(SALDOS));
+ATUAL=res;
 [...new Set(LANC.map(x=>x.conta).filter(Boolean))].forEach(k=>{ if(SALDOS[k]===undefined) SALDOS[k]=0; });
 document.getElementById("info").textContent=res.arquivo+" — aba “"+res.aba+"” — "+NUM(LANC.length)+" lançamentos";
 mostraSalvo(res);
@@ -1695,12 +1709,13 @@ document.getElementById("btnSaldos").onclick=()=>document.getElementById("cardSa
 document.getElementById("btnPrintAll").onclick=imprimirTudo;
 document.getElementById("btnPrintSup").onclick=()=>{ montaPrintSup(); document.getElementById("cardPrintSup").classList.toggle("hide"); };
 document.getElementById("btnPsGo").onclick=imprimirSup;
+document.getElementById("btnPub").onclick=()=>{ document.getElementById("cardPub").classList.toggle("hide"); atualizaPub(); };
 document.getElementById("btnExcel").onclick=()=>{ baixarExcel().catch(e=>alert("Não foi possível gerar o Excel: "+e.message)); };
 }
 function carregar(file){
 const fr=new FileReader();
 fr.onload=e=>{
-try{ const res=lerArquivo(new Uint8Array(e.target.result),file.name); res.salvoEm=new Date().toISOString(); iniciar(res); salvarDados(res); }
+try{ const res=lerArquivo(new Uint8Array(e.target.result),file.name); res.salvoEm=new Date().toISOString(); res.compartilhado=false; iniciar(res); salvarDados(res); if(chaveLink()){ document.getElementById("cardPub").classList.remove("hide"); atualizaPub(); } }
 catch(err){
 const d=document.getElementById("erro");
 d.textContent="Não foi possível ler a planilha: "+err.message;
@@ -1720,11 +1735,81 @@ function apagarDadosSalvos(){ return dbOp("readwrite",st=>st.delete(DB_CHAVE)).c
 function mostraSalvo(res){
 const box=document.getElementById("salvoBox"); if(!box) return;
 const quando=res.salvoEm?new Date(res.salvoEm).toLocaleString("pt-BR"):"";
-document.getElementById("salvoTxt").innerHTML="Exibindo o extrato <b>"+String(res.arquivo).replace(/</g,"&lt;")+"</b>"+(quando?" — enviado em "+quando:"")+". Ele fica salvo neste navegador até que um novo arquivo seja enviado.";
+const nomeArq=String(res.arquivo).replace(/</g,"&lt;");
+document.getElementById("salvoTxt").innerHTML=res.compartilhado
+? "Exibindo o extrato <b>"+nomeArq+"</b> publicado no link"+(quando?" em "+quando:"")+". Todos que acessam este link veem estas informações até que um novo extrato seja publicado."
+: "Exibindo o extrato <b>"+nomeArq+"</b>"+(quando?" — enviado em "+quando:"")+". Ele fica salvo neste navegador"+(chaveLink()?" — <b>ainda não publicado no link</b> (use “Publicar no link”)":"")+".";
 box.classList.remove("hide");
 document.querySelector("#drop h2").textContent="Para atualizar, arraste o novo extrato aqui ou clique para selecionar";
 }
 document.getElementById("btnApagarSalvo").addEventListener("click",()=>{ if(!confirm("Remover o extrato salvo deste navegador? O painel voltará a ficar vazio até que um novo arquivo seja enviado.")) return; apagarDadosSalvos().then(()=>location.reload()); });
+/* ===== Compartilhamento pelo link: dados criptografados em dados.bin no repositório; a chave fica no #k= do link ===== */
+const REPO="adissoncosta/painel-financeiro-mm", BRANCH="main", ARQ_DADOS="dados.bin";
+let ATUAL=null;
+const b64u={
+de:s=>{ s=s.replace(/-/g,"+").replace(/_/g,"/"); while(s.length%4) s+="="; return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); },
+para:u=>b64(u).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")
+};
+function b64(u){ let s=""; for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return btoa(s); }
+function chaveLink(){
+const m=location.hash.match(/[#&]k=([A-Za-z0-9_-]{40,})/);
+if(m){ try{ localStorage.setItem("mm_link_key",m[1]); }catch(e){} return m[1]; }
+try{ return localStorage.getItem("mm_link_key"); }catch(e){ return null; }
+}
+function linkCompleto(k){ return location.origin+location.pathname+"#k="+k; }
+async function chaveCrypto(k){ return crypto.subtle.importKey("raw",b64u.de(k),"AES-GCM",false,["encrypt","decrypt"]); }
+async function comprimir(bytes,modo){
+if(typeof CompressionStream==="undefined") return bytes;
+const st=new Blob([bytes]).stream().pipeThrough(modo==="c"?new CompressionStream("gzip"):new DecompressionStream("gzip"));
+return new Uint8Array(await new Response(st).arrayBuffer());
+}
+async function cifrar(obj,k){
+const gz=await comprimir(new TextEncoder().encode(JSON.stringify(obj)),"c");
+const iv=crypto.getRandomValues(new Uint8Array(12));
+const ct=new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},await chaveCrypto(k),gz));
+const out=new Uint8Array(4+12+ct.length); out.set([77,77,49,typeof CompressionStream==="undefined"?0:1]); out.set(iv,4); out.set(ct,16); return out;
+}
+async function decifrar(buf,k){
+const u=new Uint8Array(buf); if(u[0]!==77||u[1]!==77||u[2]!==49) throw new Error("arquivo de dados inválido");
+const pt=new Uint8Array(await crypto.subtle.decrypt({name:"AES-GCM",iv:u.slice(4,16)},await chaveCrypto(k),u.slice(16)));
+return JSON.parse(new TextDecoder().decode(u[3]?await comprimir(pt,"d"):pt));
+}
+async function lerCompartilhado(){
+const k=chaveLink(); if(!k||!window.crypto||!crypto.subtle) return null;
+const r=await fetch(ARQ_DADOS+"?t="+Date.now(),{cache:"no-store"}); if(!r.ok) return null;
+const res=await decifrar(await r.arrayBuffer(),k); res.compartilhado=true; return res;
+}
+function atualizaPub(){
+const k=chaveLink(), st=document.getElementById("pubStatus"), lk=document.getElementById("pubLink");
+try{ document.getElementById("pubToken").value=localStorage.getItem("mm_gh_token")||""; }catch(e){}
+st.innerHTML=ATUAL&&ATUAL.compartilhado?"O extrato exibido já é o publicado no link. Envie um novo arquivo acima para atualizá-lo.":"O extrato exibido está apenas neste navegador. Clique em <b>Publicar este extrato</b> para que todos com o link o vejam.";
+lk.innerHTML=k?"Link de acesso: <b>"+linkCompleto(k)+"</b>":"O link de acesso será criado na primeira publicação.";
+}
+async function publicar(){
+const st=document.getElementById("pubStatus"), tok=document.getElementById("pubToken").value.trim();
+if(!ATUAL||!ATUAL.lanc) return alert("Carregue um extrato antes de publicar.");
+if(!tok) return alert("Informe o token do GitHub.");
+if(!window.crypto||!crypto.subtle) return alert("Este navegador só permite a criptografia em páginas https. Abra o painel pelo endereço do GitHub Pages (https://...).");
+try{ localStorage.setItem("mm_gh_token",tok); }catch(e){}
+let k=chaveLink(); if(!k){ k=b64u.para(crypto.getRandomValues(new Uint8Array(32))); }
+st.textContent="Criptografando e enviando…";
+try{
+const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:SALDOS};
+const bin=await cifrar(dados,k);
+const api="https://api.github.com/repos/"+REPO+"/contents/"+ARQ_DADOS;
+const h={"Authorization":"Bearer "+tok,"Accept":"application/vnd.github+json"};
+let sha; const g=await fetch(api+"?ref="+BRANCH+"&t="+Date.now(),{headers:h,cache:"no-store"});
+if(g.ok) sha=(await g.json()).sha; else if(g.status!==404) throw new Error("GitHub respondeu "+g.status+(g.status===401?" (token inválido ou expirado)":g.status===403?" (o token não tem permissão de escrita neste repositório)":""));
+const p=await fetch(api,{method:"PUT",headers:h,body:JSON.stringify({message:"Atualiza dados do painel ("+dados.arquivo+")",content:b64(bin),branch:BRANCH,sha})});
+if(!p.ok){ const t=await p.text(); throw new Error("GitHub respondeu "+p.status+": "+t.slice(0,200)); }
+if(!location.hash.includes("k=")) history.replaceState(null,"","#k="+k);
+try{ localStorage.setItem("mm_link_key",k); }catch(e){}
+ATUAL=Object.assign({},ATUAL,dados,{compartilhado:true}); salvarDados(ATUAL); mostraSalvo(ATUAL); atualizaPub();
+st.innerHTML="<b style='color:var(--verde)'>Publicado!</b> Em 1–2 minutos todos que abrirem o link abaixo verão este extrato.";
+}catch(e){ console.error(e); st.innerHTML="<b style='color:var(--vermelho)'>Não foi possível publicar:</b> "+String(e.message).replace(/</g,"&lt;"); }
+}
+document.getElementById("btnPubGo").addEventListener("click",publicar);
+document.getElementById("btnPubCopy").addEventListener("click",()=>{ const k=chaveLink(); if(!k) return alert("Publique primeiro para criar o link."); navigator.clipboard.writeText(linkCompleto(k)).then(()=>alert("Link copiado."),()=>prompt("Copie o link:",linkCompleto(k))); });
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
 drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementById("file").click(); });
@@ -1732,7 +1817,14 @@ drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementB
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
 drop.addEventListener("drop",e=>{ if(e.dataTransfer.files[0]) carregar(e.dataTransfer.files[0]); });
 window.addEventListener("load",()=>{
-if(typeof XLSX!=="undefined") lerDadosSalvos().then(res=>{ if(res&&res.lanc&&res.lanc.length&&!LANC.length){ try{ iniciar(res); }catch(e){ console.error(e); } } });
+if(typeof XLSX!=="undefined") Promise.all([lerCompartilhado().catch(e=>{ console.warn("Dados do link indisponíveis:",e); return null; }),lerDadosSalvos()]).then(([com,loc])=>{
+if(LANC.length) return;
+const ok=r=>r&&r.lanc&&r.lanc.length;
+let res=ok(com)?com:null;
+if(ok(loc)&&(!res||String(loc.salvoEm||"")>String(res.salvoEm||""))) res=loc;
+if(!res) return;
+try{ iniciar(res); if(res===com) salvarDados(com); }catch(e){ console.error(e); }
+});
 if(typeof XLSX==="undefined"){
 const d=document.getElementById("erro");
 d.innerHTML="A biblioteca de leitura de planilhas (SheetJS) não pôde ser carregada. Conecte-se à internet ao abrir esta página pela primeira vez, ou baixe <b>xlsx.full.min.js</b> para a mesma pasta deste arquivo e troque o endereço do script no topo do HTML por <code>src=\"xlsx.full.min.js\"</code>.";
