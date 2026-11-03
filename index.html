@@ -173,6 +173,8 @@ header{padding:16px}
 #sit{width:100%}
 .card{overflow-x:auto;padding:12px}
 }
+.salvo.hide{display:none}
+.salvo{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:#eaf6ee;border:1px solid #b7dfc3;color:#14532d;border-radius:10px;padding:10px 14px;margin:-6px 0 14px;font-size:13px}
 </style>
 </head>
 <body>
@@ -191,6 +193,7 @@ header{padding:16px}
 <input type="file" id="file" accept=".xls,.xlsx,.xlsm,.csv" style="margin-top:10px">
 <div><small>Nada é enviado para a internet: todo o processamento acontece neste navegador.</small></div>
 </div>
+<div id="salvoBox" class="salvo hide"><span id="salvoTxt"></span> <button class="sec" id="btnApagarSalvo" type="button">Remover dados salvos</button></div>
 <div id="erro" class="err hide"></div>
 <div id="app" class="hide">
 <div class="bar">
@@ -1683,6 +1686,7 @@ const salvo=localStorage.getItem("mm_saldos");
 SALDOS=Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
 [...new Set(LANC.map(x=>x.conta).filter(Boolean))].forEach(k=>{ if(SALDOS[k]===undefined) SALDOS[k]=0; });
 document.getElementById("info").textContent=res.arquivo+" — aba “"+res.aba+"” — "+NUM(LANC.length)+" lançamentos";
+mostraSalvo(res);
 document.getElementById("app").classList.remove("hide");
 document.getElementById("erro").classList.add("hide");
 montaTabs(); montaSaldos(); render();
@@ -1696,7 +1700,7 @@ document.getElementById("btnExcel").onclick=()=>{ baixarExcel().catch(e=>alert("
 function carregar(file){
 const fr=new FileReader();
 fr.onload=e=>{
-try{ iniciar(lerArquivo(new Uint8Array(e.target.result),file.name)); }
+try{ const res=lerArquivo(new Uint8Array(e.target.result),file.name); res.salvoEm=new Date().toISOString(); iniciar(res); salvarDados(res); }
 catch(err){
 const d=document.getElementById("erro");
 d.textContent="Não foi possível ler a planilha: "+err.message;
@@ -1706,6 +1710,21 @@ console.error(err);
 };
 fr.readAsArrayBuffer(file);
 }
+/* ===== Persistência: o último extrato carregado fica salvo neste navegador (IndexedDB) até que outro seja enviado ===== */
+const DB_NOME="painel_mm", DB_STORE="dados", DB_CHAVE="ultimo";
+function abrirDB(){ return new Promise((ok,erro)=>{ try{ const r=indexedDB.open(DB_NOME,1); r.onupgradeneeded=()=>r.result.createObjectStore(DB_STORE); r.onsuccess=()=>ok(r.result); r.onerror=()=>erro(r.error); }catch(e){ erro(e); } }); }
+async function dbOp(modo,fn){ const db=await abrirDB(); return new Promise((ok,erro)=>{ const tx=db.transaction(DB_STORE,modo); const req=fn(tx.objectStore(DB_STORE)); tx.oncomplete=()=>{ ok(req&&req.result); db.close(); }; tx.onerror=()=>{ erro(tx.error); db.close(); }; }); }
+function salvarDados(res){ dbOp("readwrite",st=>st.put(res,DB_CHAVE)).catch(e=>console.warn("Não foi possível salvar os dados no navegador:",e)); }
+function lerDadosSalvos(){ return dbOp("readonly",st=>st.get(DB_CHAVE)).catch(()=>null); }
+function apagarDadosSalvos(){ return dbOp("readwrite",st=>st.delete(DB_CHAVE)).catch(()=>null); }
+function mostraSalvo(res){
+const box=document.getElementById("salvoBox"); if(!box) return;
+const quando=res.salvoEm?new Date(res.salvoEm).toLocaleString("pt-BR"):"";
+document.getElementById("salvoTxt").innerHTML="Exibindo o extrato <b>"+String(res.arquivo).replace(/</g,"&lt;")+"</b>"+(quando?" — enviado em "+quando:"")+". Ele fica salvo neste navegador até que um novo arquivo seja enviado.";
+box.classList.remove("hide");
+document.querySelector("#drop h2").textContent="Para atualizar, arraste o novo extrato aqui ou clique para selecionar";
+}
+document.getElementById("btnApagarSalvo").addEventListener("click",()=>{ if(!confirm("Remover o extrato salvo deste navegador? O painel voltará a ficar vazio até que um novo arquivo seja enviado.")) return; apagarDadosSalvos().then(()=>location.reload()); });
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
 drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementById("file").click(); });
@@ -1713,6 +1732,7 @@ drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementB
 ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("hover");}));
 drop.addEventListener("drop",e=>{ if(e.dataTransfer.files[0]) carregar(e.dataTransfer.files[0]); });
 window.addEventListener("load",()=>{
+if(typeof XLSX!=="undefined") lerDadosSalvos().then(res=>{ if(res&&res.lanc&&res.lanc.length&&!LANC.length){ try{ iniciar(res); }catch(e){ console.error(e); } } });
 if(typeof XLSX==="undefined"){
 const d=document.getElementById("erro");
 d.innerHTML="A biblioteca de leitura de planilhas (SheetJS) não pôde ser carregada. Conecte-se à internet ao abrir esta página pela primeira vez, ou baixe <b>xlsx.full.min.js</b> para a mesma pasta deste arquivo e troque o endereço do script no topo do HTML por <code>src=\"xlsx.full.min.js\"</code>.";
