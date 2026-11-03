@@ -163,6 +163,16 @@ table.memoria{font-size:8.6px} table.memoria th{text-align:left}
 .card.grafico img.cablogo{display:block!important;height:34px;width:auto;margin:0 auto 3mm}
 @media print{#cardPrintSup{display:none!important}}
 }
+@media(max-width:700px){
+main{padding:12px 12px 60px}
+header{padding:16px}
+.bar{position:static}
+.tabs{position:static}
+.bar>span{max-width:100%}
+.bar select{max-width:100%}
+#sit{width:100%}
+.card{overflow-x:auto;padding:12px}
+}
 </style>
 </head>
 <body>
@@ -1191,7 +1201,7 @@ l1.appendChild(el("label",null,"Chave de API"));
 const inK=el("input"); inK.type="password"; inK.placeholder="sk-ant-..."; inK.value=localStorage.getItem("mm_claude_key")||"";
 l1.appendChild(inK);
 l1.appendChild(el("label",null,"Modelo"));
-const inM=el("input"); inM.type="text"; inM.value=localStorage.getItem("mm_claude_model")||"claude-sonnet-4-5";
+const inM=el("input"); inM.type="text"; inM.value=localStorage.getItem("mm_claude_model")||"claude-sonnet-5-5";
 l1.appendChild(inM);
 const bSalvar=el("button","sec","Salvar chave");
 bSalvar.onclick=()=>{ localStorage.setItem("mm_claude_key",inK.value.trim()); localStorage.setItem("mm_claude_model",inM.value.trim()); st.textContent="Chave e modelo salvos neste navegador."; };
@@ -1223,7 +1233,7 @@ if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>{ st.textConte
 else st.textContent="Não foi possível copiar neste navegador."; };
 bClear.onclick=()=>{ hist.length=0; msgs.innerHTML=""; st.textContent="Conversa limpa."; };
 bAsk.onclick=async ()=>{
-const chave=inK.value.trim(), modelo=inM.value.trim()||"claude-sonnet-4-5", perg=q.value.trim();
+const chave=inK.value.trim(), modelo=inM.value.trim()||"claude-sonnet-5-5", perg=q.value.trim();
 if(!chave){ st.textContent="Informe a chave de API da Anthropic."; return; }
 if(!perg){ st.textContent="Escreva a pergunta."; return; }
 localStorage.setItem("mm_claude_key",chave); localStorage.setItem("mm_claude_model",modelo);
