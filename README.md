@@ -6,8 +6,9 @@ Painel web que lê o extrato financeiro padrão (.xls / .xlsx / .csv) e gera aut
 
 Todo o processamento acontece no navegador: a planilha carregada não é enviada para nenhum servidor. O último extrato enviado fica salvo no próprio navegador e continua aparecendo ao reabrir o site, até que um novo arquivo seja enviado (ou até clicar em "Remover dados salvos").
 
-## Compartilhar pelo link
+## Duas páginas
 
-Depois de carregar o extrato, clique em **Publicar no link**. O painel criptografa os dados (AES-256) e grava o arquivo `dados.bin` neste repositório usando um token do GitHub. Esse token precisa ter acesso apenas a este repositório, com a permissão *Contents: Read and write*.
+- **Gestão (só o responsável):** `https://adissoncosta.github.io/painel-financeiro-mm/#gerenciar`. Nesta página você envia a planilha e publica o extrato. A publicação usa um token do GitHub, que precisa ter acesso apenas a este repositório, com a permissão *Contents: Read and write*. Ao publicar, a página de consulta abre em uma nova guia.
+- **Consulta (demais pessoas):** o link que termina em `#k=...`. Ela mostra apenas os relatórios publicados, sem envio de arquivo.
 
-A chave para abrir os dados vai no próprio link, depois de `#k=`. Ela nunca é enviada ao GitHub. Quem tem o link completo vê os relatórios; sem ele, `dados.bin` é ilegível.
+Os dados ficam em `dados.bin`, criptografados com AES-256. A chave vai somente no link de consulta (depois do `#`) e nunca é enviada ao GitHub.
