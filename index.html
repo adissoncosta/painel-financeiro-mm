@@ -1068,7 +1068,9 @@ function pontos(c){
 const p=[], rm=resumoMensal(c), conta=porConta(c), f=fluxo(c);
 const T=(a,k)=>a.reduce((x,o)=>x+o[k],0);
 const recOp=T(rm,"recOp"), despOp=T(rm,"despOp"), tIn=T(rm,"tIn"), tOut=T(rm,"tOut");
-if(recOp-despOp<0) p.push("Resultado operacional negativo em "+BRL(despOp-recOp)+" — as despesas operacionais equivalem a "+PCT(despOp/(recOp||1))+" das receitas operacionais.");
+if(recOp-despOp<0){ const repNac=repasses(c).T.ent_nac.tot;
+p.push("Resultado operacional negativo em "+BRL(despOp-recOp)+" — as despesas operacionais equivalem a "+PCT(despOp/(recOp||1))+" das receitas operacionais."+
+(repNac>0.005?" Observação: este resultado não considera o Repasse da IDPB Nacional, que é tratado como transferência e não como receita — no período ele somou "+BRL(repNac)+"; incluído o repasse, o resultado seria de "+BRL(recOp-despOp+repNac)+".":"")); }
 { const rp=repasses(c), intK=["dec_sai","dec_ent","cart_sai","cart_ent","sim_sai","sim_ent","adv_sai","adv_ent","out_sai","out_ent"], liq=rp.soma(intK);
 if(Math.abs(liq)>0.01) p.push("Transferências entre contas próprias sem contrapartida: o líquido das transferências internas é "+BRL(liq)+" (deveria ser zero). Verifique na aba Repasses e transferências qual par não fecha.");
 if(rp.T.nao_class.n) p.push(NUM(rp.T.nao_class.n)+" transferência(s) sem classificação, somando "+BRL(rp.T.nao_class.tot)+" — confira a descrição desses lançamentos.");
