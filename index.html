@@ -2,8 +2,17 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Painel Financeiro MM — Análise automática do extrato</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1666c5">
+<meta name="application-name" content="Painel MM">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Painel MM">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet">
@@ -404,6 +413,48 @@ body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
 @media print{body.printing main>*:not(#printArea){display:none!important}}
 @media print{html,body.printing{background:#fff!important}}
 @media screen{input[type=date]{font:inherit;height:36px;border:1px solid #d3dbe6;border-radius:8px;padding:0 10px;background:#fff;color:#1f2937}}
+/* ===== app (PWA) ===== */
+.nav-app{display:none}
+.aviso-ios{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:16px}
+.aviso-ios.hide{display:none}
+.aviso-ios-caixa{background:#fff;border-radius:16px;padding:20px 20px 16px;max-width:420px;width:100%;font-size:14px;color:#1f2937;box-shadow:0 10px 40px rgba(0,0,0,.25);margin-bottom:env(safe-area-inset-bottom)}
+.aviso-ios-caixa ol{margin:10px 0 14px;padding-left:20px;line-height:1.7}
+.aviso-ios-caixa button{width:100%}
+#btnInstalar.hide{display:none}
+@media screen{
+.topo{padding-top:env(safe-area-inset-top);height:calc(60px + env(safe-area-inset-top))}
+.lateral header .marca{padding-top:calc(18px + env(safe-area-inset-top))}
+body.em-app #btnInstalar{display:none}
+}
+@media screen and (max-width:900px){
+.topo{height:calc(56px + env(safe-area-inset-top))}
+#btnInstalar{height:32px;font-size:12px;padding:0 10px}
+#btnOcultar{font-size:0!important;width:36px;padding:0;position:relative}
+#btnOcultar::before{content:"👁";font-size:16px}
+body.ocultar #btnOcultar::before{content:"🙈"}
+body.com-dados .nav-app{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:22;background:#fff;border-top:1px solid #e3e8ef;padding:4px 4px calc(4px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(16,24,40,.06)}
+.nav-app button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:54px;background:transparent;border:0;border-radius:10px;color:#64748b;font-size:10.5px;font-weight:600;padding:0;box-shadow:none}
+.nav-app button:hover{background:#f1f5fa;color:#1f2937;border:0}
+.nav-app button.on,.nav-app button.on:hover{color:var(--azul-acao);background:#e8f0fc}
+body.com-dados main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+body.com-dados .rodape{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+}
+@media print{.nav-app,.aviso-ios,#btnInstalar{display:none!important}}
+.filtros-resumo{display:none}
+@media screen and (max-width:900px){
+.filtros-resumo{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;height:40px;background:transparent;border:0;color:#1f2937;font-size:13.5px;font-weight:600;padding:0 2px;box-shadow:none}
+.filtros-resumo:hover{background:transparent;border:0}
+.filtros-resumo svg{transition:transform .15s;color:#64748b}
+.bar:not(.recolhida) .filtros-resumo svg{transform:rotate(180deg)}
+.bar:not(.recolhida) .filtros-resumo{margin-bottom:10px}
+.bar.recolhida{padding:4px 14px}
+.bar.recolhida .filtros,.bar.recolhida .acoes{display:none}
+.kpis{grid-template-columns:1fr 1fr!important;gap:10px}
+.kpi{padding:12px}
+.kpi .l{font-size:10px}
+.kpi .v{font-size:16px!important;margin-top:6px}
+.card{border-radius:12px}
+}
 </style>
 </head>
 <body>
@@ -428,6 +479,7 @@ body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
 <h2 id="tituloAba">Painel Financeiro — Ministério de Missões</h2>
 <span class="selo so-gestao">MODO GESTÃO — SOMENTE VOCÊ</span>
 <span class="topo-esp"></span>
+<button class="sec hide" id="btnInstalar" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Instalar app</button>
 <button class="sec" id="btnOcultar" type="button">Ocultar valores</button>
 </div>
 <main>
@@ -440,7 +492,8 @@ body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
 <div id="erro" class="err hide"></div>
 <div id="vazio" class="vazio hide"><h2>Nenhum relatório disponível</h2><div>Abra o link completo enviado pelo responsável (ele termina com <b>#k=…</b>). Se o link estiver correto, o relatório pode ainda não ter sido publicado.</div></div>
 <div id="app" class="hide">
-<div class="bar">
+<div class="bar recolhida" id="barra">
+<button type="button" class="filtros-resumo" id="btnFiltros"><span id="filtrosTxt">Filtros</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
 <div class="filtros">
 <div class="campo"><label for="ano">Ano</label><select id="ano"></select></div>
 <div class="campo"><label for="m1">De</label><select id="m1"></select></div>
@@ -512,6 +565,8 @@ body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
 </main>
 <footer class="rodape"><span>IDPB — Igreja de Deus Pentecostal do Brasil · Ministério de Missões</span><span>Painel Financeiro</span></footer>
 </div>
+<nav class="nav-app" id="navApp" aria-label="Navegação rápida"></nav>
+<div class="aviso-ios hide" id="avisoIos"><div class="aviso-ios-caixa"><b>Instalar o Painel MM no iPhone/iPad</b><ol><li>Toque no botão <b>Compartilhar</b> <span aria-hidden="true">⬆︎</span> na barra do Safari.</li><li>Escolha <b>Adicionar à Tela de Início</b>.</li><li>Toque em <b>Adicionar</b>.</li></ol><button type="button" id="avisoIosOk">Entendi</button></div></div>
 <script>
 const BRL = v => (v===0||v===undefined||v===null||isNaN(v)) ? "-" :
 (v<0 ? "(" : "") + "R$ " + Math.abs(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) + (v<0 ? ")" : "");
@@ -2135,6 +2190,7 @@ t.appendChild(b);
 });
 });
 const v=VIEWS.find(x=>x[0]===ABA); document.getElementById("tituloAba").textContent=v?v[1]:"";
+montaNavApp(); document.body.classList.add("com-dados");
 }
 function montaSaldos(){
 const box=document.getElementById("saldosBox"); box.innerHTML="";
@@ -2148,6 +2204,7 @@ d.appendChild(i); box.appendChild(d);
 }
 function render(){
 const c=cfg(), host=document.getElementById("views");
+{ const ft=document.getElementById("filtrosTxt"); if(ft) ft.textContent=MESES[c.m1-1].replace(/^./,x=>x.toUpperCase())+"–"+MESES[c.m2-1]+"/"+c.ano+" · "+(c.real?"Realizados":"Todos os lançamentos")+" · filtros e ações"; }
 host.innerHTML="";
 try{ const vw=VIEWS.find(v=>v[0]===ABA); host.appendChild(cabecalhoImpressao(vw[1]+(ABA==="comparativo"?" — "+rotCMP():""),c)); host.appendChild(vw[2](c)); }
 catch(e){ const d=el("div","err","Erro ao gerar o relatório: "+e.message); host.appendChild(d); console.error(e); }
@@ -2461,6 +2518,7 @@ publicar(aba);
 });
 document.getElementById("btnPubCopy").addEventListener("click",()=>{ const k=chaveLink(); if(!k) return alert("Publique primeiro para criar o link."); navigator.clipboard.writeText(linkCompleto(k)).then(()=>alert("Link copiado."),()=>prompt("Copie o link:",linkCompleto(k))); });
 document.getElementById("btnMenu").addEventListener("click",()=>document.body.classList.toggle("menu-aberto"));
+document.getElementById("btnFiltros").addEventListener("click",()=>document.getElementById("barra").classList.toggle("recolhida"));
 document.getElementById("lateralFundo").addEventListener("click",()=>document.body.classList.remove("menu-aberto"));
 (function(){ const b=document.getElementById("btnOcultar");
 const aplica=on=>{ document.body.classList.toggle("ocultar",on); b.textContent=on?"Mostrar valores":"Ocultar valores"; };
@@ -2561,6 +2619,34 @@ document.getElementById("btnRecVer").addEventListener("click",()=>{ const l=docu
 document.getElementById("recAssFile").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return;
 const r=new FileReader(); r.onload=()=>{ try{ localStorage.setItem("mm_assinatura",r.result); }catch(err){ alert("Não foi possível salvar a assinatura neste navegador (imagem muito grande?)."); } atualizaRecibos(); }; r.readAsDataURL(f); e.target.value=""; });
 document.getElementById("btnRecAssDel").addEventListener("click",()=>{ try{ localStorage.removeItem("mm_assinatura"); }catch(e){} atualizaRecibos(); });
+/* ===== App instalável (PWA) ===== */
+const NAV_APP=[["painel","Início"],["fluxo","Fluxo"],["demo","Contribuições"],["decapolis","Decápolis"]];
+function montaNavApp(){
+const n=document.getElementById("navApp"); if(!n) return; n.innerHTML="";
+NAV_APP.forEach(([k,rot])=>{ const b=el("button",k===ABA?"on":null); b.type="button";
+b.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONES[k]||"")+'</svg><span></span>';
+b.querySelector("span").textContent=rot; b.onclick=()=>{ ABA=k; montaTabs(); render(); window.scrollTo(0,0); }; n.appendChild(b); });
+const m=el("button",NAV_APP.some(x=>x[0]===ABA)?null:"on"); m.type="button";
+m.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Mais</span>';
+m.onclick=()=>document.body.classList.add("menu-aberto"); n.appendChild(m);
+}
+(function(){
+const standalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+if(standalone) document.body.classList.add("em-app");
+if("serviceWorker" in navigator && (location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+window.addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js").catch(e=>console.warn("Service worker não registrado:",e)); });
+}
+const btn=document.getElementById("btnInstalar"); let pedido=null;
+window.addEventListener("beforeinstallprompt",e=>{ e.preventDefault(); pedido=e; if(!standalone) btn.classList.remove("hide"); });
+window.addEventListener("appinstalled",()=>{ btn.classList.add("hide"); pedido=null; });
+const ios=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+if(ios&&!standalone) btn.classList.remove("hide");
+btn.addEventListener("click",async()=>{
+if(pedido){ pedido.prompt(); try{ await pedido.userChoice; }catch(e){} pedido=null; btn.classList.add("hide"); }
+else if(ios) document.getElementById("avisoIos").classList.remove("hide");
+});
+document.getElementById("avisoIosOk").addEventListener("click",()=>document.getElementById("avisoIos").classList.add("hide"));
+})();
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
 drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementById("file").click(); });

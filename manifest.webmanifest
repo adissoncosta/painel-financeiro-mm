@@ -1,0 +1,22 @@
+{
+  "name": "Painel Financeiro — Ministério de Missões",
+  "short_name": "Painel MM",
+  "description": "Relatórios financeiros do Ministério de Missões da IDPB.",
+  "lang": "pt-BR",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f5f8",
+  "theme_color": "#1666c5",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Relatórios", "short_name": "Relatórios", "url": "./", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Modo gestão (enviar extrato, recibos)", "short_name": "Gestão", "url": "./#gerenciar", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
