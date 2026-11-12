@@ -1511,7 +1511,7 @@ const L=base(c,false).filter(x=>ehAdiantViagem(x)||/^25\s*-/.test(semAcento(x.co
 const nome=x=>{ const d=semAcento(x.desc); for(const p of PESSOAS_VIAGEM){ if(d.indexOf(p[0])>-1) return p[1]; } return "(sem nome na descrição)"; };
 L.forEach(x=>{
 const na25=/^25\s*-/.test(semAcento(x.conta))||semAcento(x.conta).indexOf("ADIANTAMENTO DE VIAGE")>-1;
-if(!na25) return; /* olha só a perna da conta 25 (a outra perna é a contrapartida na conta de origem) */
+if(!na25||Math.abs(x.valor)<0.005) return; /* olha só a perna da conta 25 (a outra perna é a contrapartida na conta de origem); ignora lançamentos sem valor */
 const p=nome(x), o=P[p]=P[p]||{p,env:0,desp:0,dev:0,n:0}; o.n++;
 const transf=semAcento(x.cat).indexOf("TRANSFERENCIA")>-1;
 if(transf&&x.valor>0) o.env+=x.valor; else if(transf) o.dev+=-x.valor; else o.desp+=-x.valor;
@@ -2137,7 +2137,7 @@ window.print();
 }
 window.addEventListener("afterprint",function(){ document.body.classList.remove("printing"); document.getElementById("printArea").innerHTML=""; });
 function iniciar(res){
-LANC=res.lanc;
+LANC=res.lanc.filter(x=>semAcento(x.cat)!=="SALDO INICIAL"); /* abertura de conta do sistema (também em dados salvos antes deste ajuste) */
 const anos=[...new Set(LANC.map(x=>x.anoMov))].sort();
 const selA=document.getElementById("ano"); selA.innerHTML="";
 anos.forEach(a=>{ const o=el("option",null,a); o.value=a; selA.appendChild(o); });
