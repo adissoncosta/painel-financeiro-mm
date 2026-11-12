@@ -368,6 +368,17 @@ main{padding:14px 12px 40px}
 }
 .tab-texto td.num:not(:last-child),.tab-texto th:not(:last-child){text-align:left}
 .tab-texto td:nth-child(4){white-space:normal;min-width:320px}
+@media screen{
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 16px}
+.chip{display:inline-flex;align-items:center;gap:8px;height:auto;padding:7px 12px;border-radius:999px;background:#fff;color:#334155;border:1px solid #d3dbe6;font-weight:600;font-size:12.5px}
+.chip b{font-weight:700;color:var(--verde-ca)}
+.chip:hover{background:#f1f5fa;border-color:#b8c4d6;color:#1f2937}
+.chip.on,.chip.on:hover{background:var(--azul-acao);border-color:var(--azul-acao);color:#fff}
+.chip.on b{color:#fff}
+}
+.tab-dec td:nth-child(3){white-space:normal;min-width:240px}
+.tab-dec td:nth-child(4){white-space:nowrap;min-width:0}
+.grid2>*,.grid3>*{min-width:0}
 </style>
 </head>
 <body>
@@ -1182,6 +1193,25 @@ return w;
 }
 /* ===== Missão Decápolis: fluxo das contas da Decápolis (mesma estrutura do fluxo de caixa da missão) ===== */
 const ehContaDecapolis = k => semAcento(k).indexOf("DECAPOLIS")>-1;
+/* finalidade das receitas da Decápolis, lida da descrição (e da categoria) */
+let DEC_FILTRO="Todas";
+const ORDEM_FIN_DEC=["Oferta missionária (geral)","Oferta para construção da base missionária","Oferta para compra de terreno","Oferta para a Caravana de Impacto","Dízimo missionário","Repasse do MM","Reembolsos e valores de terceiros","Rendimentos","Outras receitas"];
+function finalidadeDec(x){
+const d=semAcento(x.desc), c=semAcento(x.cat);
+if(ehTransf(x)) return x.valor>=0?"Repasse do MM":"Transferências de saída";
+if(c.indexOf("RENDIMENTO")>-1) return "Rendimentos";
+if(c.indexOf("TERCEIROS")>-1||d.indexOf("REEMBOLSO")>-1||d.indexOf("DEVOLUCAO")>-1) return "Reembolsos e valores de terceiros";
+if(c.indexOf("DIZIMO")>-1) return "Dízimo missionário";
+if(d.indexOf("TERRENO")>-1) return "Oferta para compra de terreno";
+if(d.indexOf("CONSTRU")>-1||d.indexOf("BASE MISSION")>-1||d.indexOf("REFORMA")>-1) return "Oferta para construção da base missionária";
+if(d.indexOf("CARAVANA")>-1) return "Oferta para a Caravana de Impacto";
+if(c.indexOf("OFERTA")>-1){
+const m=d.match(/OFERTA MISSIONARIA(?: PARA)?(?: MISSAO)?(?: DECAPOLIS)?\s*-\s*(.+)$/);
+if(m&&!/^COMP/.test(m[1])){ const t=m[1].replace(/^(OFERTA|PROJETO)\s+(PARA\s+)?/,"").trim().toLowerCase(); return "Oferta para "+t; } /* finalidade nova aparece sozinha */
+return "Oferta missionária (geral)";
+}
+return "Outras receitas";
+}
 function decapolis(c){
 const ms=periodoMeses(c), contas=[...new Set([...Object.keys(SALDOS),...LANC.map(x=>x.conta)])].filter(k=>k&&ehContaDecapolis(k));
 const L=base(c,false).filter(x=>ehContaDecapolis(x.conta));
@@ -1209,9 +1239,13 @@ const tIn=z(), tOut=z(); transf.forEach(x=>{ if(x.valor>=0) tIn[x.mesMov]+=x.val
 const saldoIni={}, saldoFim={}, ger={}; let ac=ini;
 ms.forEach(m=>{ saldoIni[m]=ac; ger[m]=R.tot[m]+P.tot[m]; ac+=ger[m]+tIn[m]+tOut[m]; saldoFim[m]=ac; });
 const S=o=>ms.reduce((a,m)=>a+o[m],0);
-const ofer={}; op.filter(x=>x.tipo==="Receita"&&semAcento(x.cat).indexOf("OFERTA")>-1).forEach(x=>{ const k=x.cliente||"(sem nome)"; ofer[k]=(ofer[k]||0)+x.valor; });
+const recs=L.filter(x=>x.tipo==="Receita"&&x.valor).map(x=>({x,f:finalidadeDec(x)}));
+const fin={}; recs.forEach(o=>{ const F=fin[o.f]=fin[o.f]||{f:o.f,v:{},tot:0,n:0}; ms.forEach(m=>{ if(F.v[m]===undefined) F.v[m]=0; }); if(F.v[o.x.mesMov]!==undefined) F.v[o.x.mesMov]+=o.x.valor; F.tot+=o.x.valor; F.n++; });
+const finLista=Object.values(fin).sort((a,b)=>{ const ia=ORDEM_FIN_DEC.indexOf(a.f), ib=ORDEM_FIN_DEC.indexOf(b.f); return (ia<0?50:ia)-(ib<0?50:ib)||b.tot-a.tot; });
+const filtro=f=>f==="Todas"?recs.filter(o=>o.f.indexOf("Oferta")===0):recs.filter(o=>o.f===f);
+const ofer={}; filtro(DEC_FILTRO).forEach(o=>{ const k=o.x.cliente||"(sem nome)"; ofer[k]=(ofer[k]||0)+o.x.valor; });
 const custos={}; op.filter(x=>x.tipo!=="Receita").forEach(x=>{ custos[x.cat||"(sem categoria)"]=(custos[x.cat||"(sem categoria)"]||0)-x.valor; });
-return {ms,contas,ini,R,P,tIn,tOut,saldoIni,saldoFim,ger,S,n:L.length,
+return {ms,contas,ini,R,P,tIn,tOut,saldoIni,saldoFim,ger,S,n:L.length,finLista,recsFiltro:filtro(DEC_FILTRO),
 ofertantes:Object.entries(ofer).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v),
 custos:Object.entries(custos).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
 }
@@ -1245,13 +1279,39 @@ const g=el("div","grid2");
 g.appendChild(card("Recebimentos x pagamentos por mês",svgCombo(ms.map(m=>MESES[m-1]),ms.map(m=>d.R.tot[m]),ms.map(m=>d.P.tot[m]),ms.map(m=>d.saldoFim[m]),{w:700,h:420})));
 g.appendChild(card("Custos por categoria",svgBarras(d.custos.slice(0,12).reverse().map(o=>({l:String(o.k).replace(/ - DEC[AÁ]POLIS$/i,""),v:o.v,c:"#e0364f"})),{horizontal:true,w:700})));
 w.appendChild(g);
+/* --- receitas por finalidade + filtro --- */
+{ const fl=d.finLista, totR=fl.reduce((a,o)=>a+o.tot,0);
+const box=el("div","card"); box.appendChild(el("h3",null,"Recebimentos por finalidade"));
+const chips=el("div","chips naoimprimir");
+const opcoes=["Todas"].concat(fl.filter(o=>o.f.indexOf("Oferta")===0).map(o=>o.f));
+if(opcoes.indexOf(DEC_FILTRO)<0) DEC_FILTRO="Todas";
+opcoes.forEach(f=>{ const o=fl.find(x=>x.f===f); const b=el("button",f===DEC_FILTRO?"chip on":"chip"); b.type="button";
+b.innerHTML="<span></span><b></b>"; b.querySelector("span").textContent=f==="Todas"?"Todas as ofertas":f;
+b.querySelector("b").textContent=BRL(f==="Todas"?fl.filter(x=>x.f.indexOf("Oferta")===0).reduce((a,x)=>a+x.tot,0):o.tot);
+b.onclick=()=>{ DEC_FILTRO=f; const y=window.scrollY; render(); window.scrollTo(0,y); }; chips.appendChild(b); });
+box.appendChild(el("div","note",""));
+box.lastChild.innerHTML="Filtre as ofertas pela finalidade: o filtro vale para os quadros de ofertantes e de lançamentos abaixo.";
+box.appendChild(chips);
+const lf=fl.map(o=>({cells:[o.f].concat(ms.map(m=>o.v[m])).concat([o.tot,PCT(o.tot/(totR||1)),NUM(o.n)])}));
+lf.push({cls:"tot",cells:["TOTAL DE RECEBIMENTOS"].concat(ms.map(m=>fl.reduce((a,o)=>a+o.v[m],0))).concat([totR,PCT(1),NUM(fl.reduce((a,o)=>a+o.n,0))])});
+box.appendChild(tabela(["Finalidade"].concat(colsMes).concat(["Total","% do total","Nº lanç."]),lf));
+const n=el("div","note"); n.innerHTML="A finalidade é lida na <b>descrição</b> do lançamento: “TERRENO” = compra de terreno; “CONSTRUÇÃO”/“BASE MISSIONÁRIA” = construção da base; “CARAVANA” = Caravana de Impacto; demais ofertas = oferta missionária geral. Uma oferta com outra finalidade escrita depois do traço (ex.: “OFERTA MISSIONÁRIA DECÁPOLIS - PROJETO X”) aparece sozinha como nova finalidade. Inclui também dízimos, repasses do MM (transferências), reembolsos e rendimentos."; box.appendChild(n);
+w.appendChild(box);
+const g0=el("div","grid2");
+g0.appendChild(card("Participação de cada finalidade (R$)",svgBarras(fl.slice().sort((a,b)=>a.tot-b.tot).map(o=>({l:o.f,v:o.tot,c:o.f.indexOf("Oferta")===0?"#22a447":"#94a3b8"})),{horizontal:true,w:700})));
+const rl=d.recsFiltro.slice().sort((a,b)=>(a.x.mesMov-b.x.mesMov)||((a.x.diaMov||0)-(b.x.diaMov||0)));
+const tbl=tabela(["Data","Ofertante","Descrição","Finalidade","Valor"],rl.map(o=>({cells:[(o.x.diaMov?String(o.x.diaMov).padStart(2,"0")+"/":"")+String(o.x.mesMov).padStart(2,"0")+"/"+o.x.anoMov,o.x.cliente||"(sem nome)",o.x.desc,o.f,o.x.valor]})).concat([{cls:"tot",cells:["TOTAL","","","",rl.reduce((a,o)=>a+o.x.valor,0)]}]));
+tbl.classList.add("tab-texto","tab-dec"); tbl.style.maxHeight="420px";
+g0.appendChild(card("Lançamentos — "+(DEC_FILTRO==="Todas"?"todas as ofertas":DEC_FILTRO.toLowerCase())+" ("+NUM(rl.length)+")",tbl));
+w.appendChild(g0);
+}
 if(d.ofertantes.length){
 const tot=d.ofertantes.reduce((a,o)=>a+o.v,0);
 const lo=d.ofertantes.slice(0,25).map((o,i)=>({cells:[(i+1)+". "+o.k,o.v,PCT(o.v/(tot||1))]}));
 lo.push({cls:"tot",cells:["TOTAL ("+NUM(d.ofertantes.length)+" ofertantes)",tot,PCT(1)]});
 const g2=el("div","grid2");
-g2.appendChild(card("Maiores ofertantes da Decápolis",tabela(["Ofertante","Valor","% do total"],lo)));
-g2.appendChild(card("Ofertas missionárias Decápolis — maiores ofertantes",svgBarras(d.ofertantes.slice(0,12).reverse().map(o=>({l:o.k,v:o.v,c:"#22a447"})),{horizontal:true,w:700})));
+g2.appendChild(card("Maiores ofertantes — "+(DEC_FILTRO==="Todas"?"todas as ofertas":DEC_FILTRO.toLowerCase()),tabela(["Ofertante","Valor","% do total"],lo)));
+g2.appendChild(card("Maiores ofertantes (gráfico) — "+(DEC_FILTRO==="Todas"?"todas as ofertas":DEC_FILTRO.toLowerCase()),svgBarras(d.ofertantes.slice(0,12).reverse().map(o=>({l:o.k,v:o.v,c:"#22a447"})),{horizontal:true,w:700})));
 w.appendChild(g2);
 }
 return w;
