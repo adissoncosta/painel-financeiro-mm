@@ -6,7 +6,7 @@
 <title>Painel Financeiro MM — Análise automática do extrato</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Montserrat:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
@@ -379,6 +379,31 @@ main{padding:14px 12px 40px}
 .tab-dec td:nth-child(3){white-space:normal;min-width:240px}
 .tab-dec td:nth-child(4){white-space:nowrap;min-width:0}
 .grid2>*,.grid3>*{min-width:0}
+/* ===== recibos ===== */
+.recibo{font-family:Montserrat,"Segoe UI",Arial,sans-serif;color:#111;display:none}
+@page recibo{size:A4 portrait;margin:14mm 16mm}
+@media print{
+body.imprimindo-recibos #printArea .recibo{display:block;page:recibo;break-after:page}
+body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
+.rc-linha{border-top:2.2px solid #111;margin:0}
+.rc-cab{display:flex;align-items:center;gap:26px;padding:9mm 0 7mm}
+.rc-logo{width:30mm;height:auto}
+.rc-org{color:#666;font-size:10.5pt;line-height:1.75;letter-spacing:.1px}
+.rc-tit{display:flex;justify-content:space-between;align-items:baseline;padding:6mm 0 3mm}
+.rc-tit>span:first-child{font-size:25pt;font-weight:700}
+.rc-valor{font-size:24pt;color:#555;font-weight:400;margin-right:6mm}
+.rc-valor small{font-size:13pt;margin-right:2px}
+.rc-trac{border-top:1.6px dashed #777;margin-bottom:12mm}
+.rc-p{font-size:12pt;line-height:1.45;margin:0 0 7mm;padding:0 2mm}
+.rc-data{text-align:center;font-size:12pt;margin-top:12mm}
+.rc-ass{height:19mm;display:flex;justify-content:center;align-items:flex-end}
+.rc-ass img{height:19mm;width:auto;margin-left:6mm}
+.rc-assl{border-top:1.4px solid #111;width:70%;margin:0 auto 3mm}
+.rc-assn{text-align:center;font-size:12pt;margin-bottom:4mm}
+}
+@media print{body.printing main>*:not(#printArea){display:none!important}}
+@media print{html,body.printing{background:#fff!important}}
+@media screen{input[type=date]{font:inherit;height:36px;border:1px solid #d3dbe6;border-radius:8px;padding:0 10px;background:#fff;color:#1f2937}}
 </style>
 </head>
 <body>
@@ -434,6 +459,7 @@ main{padding:14px 12px 40px}
 <button class="sec" id="btnPrintAll">Imprimir tudo em A4</button>
 <button class="sec" id="btnPrintSup">Imprimir por diretoria / supervisão</button>
 <button class="sec" id="btnExcel">Baixar em Excel</button>
+<button class="sec so-gestao" id="btnRecibos">Gerar recibos</button>
 <button id="btnPub">Publicar no link</button>
 <span id="info"></span>
 </div>
@@ -453,6 +479,27 @@ main{padding:14px 12px 40px}
 <h3>Saldos informados em 31/12 do ano anterior (âncora)</h3>
 <div class="saldos" id="saldosBox"></div>
 <div class="note">Informe aqui apenas o saldo de fechamento de <b>31/12/2025</b> de cada conta. O painel calcula automaticamente o saldo anterior do período escolhido somando a movimentação dos meses anteriores — se você pedir setembro, o saldo anterior será o fechamento de agosto. Os valores ficam salvos neste navegador.</div>
+</div>
+<div class="card hide so-gestao" id="cardRecibos">
+<h3>Recibos de entradas</h3>
+<div class="filtros">
+<div class="campo"><label for="recDe">De</label><input type="date" id="recDe"></div>
+<div class="campo"><label for="recAte">Até</label><input type="date" id="recAte"></div>
+<div class="campo"><label for="recConta">Banco / conta</label><select id="recConta"></select></div>
+<label class="check"><input type="checkbox" id="recTransf"> Incluir transferências e repasses entre contas</label>
+</div>
+<div id="recResumo" class="note" style="margin:12px 0"></div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<button id="btnRecGo" type="button">Imprimir / salvar em PDF</button>
+<button class="sec" id="btnRecVer" type="button">Ver a lista</button>
+<span style="flex:1"></span>
+<label class="sec" style="font-size:12.5px;color:#64748b">Assinatura:</label>
+<span id="recAssStatus" style="font-size:12.5px"></span>
+<input type="file" id="recAssFile" accept="image/*" style="font-size:12px">
+<button class="sec" id="btnRecAssDel" type="button">Remover assinatura</button>
+</div>
+<div id="recLista" class="hide" style="margin-top:12px"></div>
+<div class="note">Um recibo por entrada <b>realizada</b> (Conciliado, Quitado ou Transferido) na conta e no período escolhidos, no modelo da IDPB. Mudam em cada recibo apenas: nome e CNPJ/CPF de quem pagou, valor (em número e por extenso), descrição do lançamento e data do recebimento. A imagem da assinatura fica salva <b>somente neste navegador</b> — não é publicada no site nem no link de consulta. No diálogo de impressão, escolha “Salvar como PDF” para gerar o arquivo.</div>
 </div>
 <div class="card hide" id="cardPrintSup">
 <h3>Imprimir contribuições por diretoria / supervisão</h3>
@@ -606,6 +653,7 @@ let ABA="painel";
 const COLS = {
 dataMov:["DATA MOVIMENTO","DATA DO MOVIMENTO","DATA"],
 cliente:["NOME DO FORNECEDOR/CLIENTE","FORNECEDOR/CLIENTE","CLIENTE","NOME"],
+doc:["IDENTIFICADOR DO FORNECEDOR/CLIENTE","CNPJ/CPF","CPF/CNPJ","CNPJ","CPF"],
 desc:["DESCRICAO","DESCRIÇÃO","HISTORICO","HISTÓRICO"],
 tipo:["TIPO"],
 conta:["CONTA BANCARIA","CONTA BANCÁRIA","CONTA"],
@@ -652,7 +700,7 @@ if(idx.cat!==undefined && semAcento(r[idx.cat])==="SALDO INICIAL") continue; /* 
 out.push({
 diaMov:dm.d, mesMov:dm.m, anoMov:dm.y,
 mesComp:dc?dc.m:dm.m, anoComp:dc?dc.y:dm.y,
-cliente:norm(r[idx.cliente]), desc:norm(r[idx.desc]),
+cliente:norm(r[idx.cliente]), doc:idx.doc!==undefined?fmtDoc(r[idx.doc]):"", desc:norm(r[idx.desc]),
 tipo:norm(r[idx.tipo]), conta:norm(r[idx.conta]),
 valor:toNum(r[idx.valor]), situacao:norm(r[idx.situacao]),
 cat:norm(r[idx.cat]), cc:norm(r[idx.cc])||"(sem centro de custo)"
@@ -2419,6 +2467,90 @@ const aplica=on=>{ document.body.classList.toggle("ocultar",on); b.textContent=o
 let on=false; try{ on=localStorage.getItem("mm_ocultar")==="1"; }catch(e){} aplica(on);
 b.addEventListener("click",()=>{ on=!document.body.classList.contains("ocultar"); aplica(on); try{ localStorage.setItem("mm_ocultar",on?"1":"0"); }catch(e){} });
 })();
+/* ===== Recibos de entradas ===== */
+const RECIBO_ORG={nome:"IGREJA DE DEUS PENTECOSTAL DO BRASIL",cnpj:"16.714.131/0001-70",ie:"ISENTO",end:"Rua Raimundo Gomes de Resende, 97, Lagoa Santa - MG",cep:"33239-403",cidade:"Lagoa Santa (MG)"};
+const RECIBO_LOGO="data:image/jpeg;base64,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";
+function fmtDoc(v){
+let d=String(v==null?"":v).replace(/\D/g,""); if(!d) return "";
+if(d.length<=11){ d=d.padStart(11,"0"); return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,"$1.$2.$3-$4"); }
+d=d.padStart(14,"0"); return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/,"$1.$2.$3/$4-$5");
+}
+function extenso(v){
+const U=["","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez","onze","doze","treze","quatorze","quinze","dezesseis","dezessete","dezoito","dezenove"];
+const D=["","","vinte","trinta","quarenta","cinquenta","sessenta","setenta","oitenta","noventa"];
+const C=["","cento","duzentos","trezentos","quatrocentos","quinhentos","seiscentos","setecentos","oitocentos","novecentos"];
+const ate999=n=>{ if(n===0) return ""; if(n===100) return "cem"; const c=Math.floor(n/100), r=n%100, p=[];
+if(c) p.push(C[c]); if(r<20){ if(r) p.push(U[r]); } else { p.push(D[Math.floor(r/10)]+(r%10?" e "+U[r%10]:"")); } return p.join(" e "); };
+const inteiro=n=>{ if(n===0) return "zero"; const grupos=[["",""],["mil","mil"],["milhão","milhões"],["bilhão","bilhões"]], partes=[]; let i=0, x=n;
+while(x>0){ const g=x%1000; if(g){ let t=(i===1&&g===1)?"mil":ate999(g)+(i?" "+(g===1?grupos[i][0]:grupos[i][1]):""); partes.unshift({t,g}); } x=Math.floor(x/1000); i++; }
+return partes.map((p,k)=>(k>0&&k===partes.length-1&&(p.g<100||p.g%100===0)?"e ":"")+p.t).join(" ").replace(/ +/g," "); };
+const tot=Math.round(Math.abs(v)*100), r=Math.floor(tot/100), c=tot%100;
+let s="";
+if(r) s=inteiro(r)+(/(milhão|milhões|bilhão|bilhões)$/.test(inteiro(r))?" de":"")+(r===1?" real":" reais");
+if(c) s+=(r?" e ":"")+inteiro(c)+(c===1?" centavo":" centavos");
+if(!s) s="zero reais";
+return s.split(" ").map(w=>["e","de"].indexOf(w)>-1?w:w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+const MESES_EXT=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
+const valorRecibo=v=>Math.abs(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function dataNum(x){ return x.anoMov*10000+x.mesMov*100+(x.diaMov||1); }
+function recibosSelecionados(){
+const de=document.getElementById("recDe").value, ate=document.getElementById("recAte").value, conta=document.getElementById("recConta").value, tr=document.getElementById("recTransf").checked;
+const n=s=>s?+s.replace(/-/g,""):null, a=n(de), b=n(ate);
+return LANC.filter(x=>x.tipo==="Receita"&&x.valor>0.004&&realizado(x)&&(tr||!ehTransf(x))&&(conta==="__todas"||x.conta===conta)&&(a===null||dataNum(x)>=a)&&(b===null||dataNum(x)<=b))
+.sort((p,q)=>dataNum(p)-dataNum(q)||p.cliente.localeCompare(q.cliente,"pt-BR"));
+}
+function htmlRecibo(x,ass){
+const esc=t=>String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const data=(x.diaMov||1)+" de "+MESES_EXT[x.mesMov-1]+" de "+x.anoMov;
+return '<section class="recibo">'+
+'<div class="rc-linha"></div>'+
+'<div class="rc-cab"><img class="rc-logo" src="'+RECIBO_LOGO+'" alt="IDPB"><div class="rc-org"><div>'+RECIBO_ORG.nome+'</div><div>CNPJ/CPF: '+RECIBO_ORG.cnpj+'<span style="margin-left:32px">IE: '+RECIBO_ORG.ie+'</span></div><div>'+RECIBO_ORG.end+'</div><div>CEP: '+RECIBO_ORG.cep+'</div></div></div>'+
+'<div class="rc-linha"></div>'+
+'<div class="rc-tit"><span>Recibo</span><span class="rc-valor"><small>R$</small>'+valorRecibo(x.valor)+'</span></div>'+
+'<div class="rc-trac"></div>'+
+'<p class="rc-p">Recebi de '+esc(x.cliente||"(sem nome)")+(x.doc?', CNPJ/CPF: '+esc(x.doc):'')+', &nbsp;a importância de '+extenso(x.valor)+' referente ao pagamento total da parcela \''+esc(x.desc)+'\'.</p>'+
+'<p class="rc-p">Para confirmar a veracidade deste documento e da quantia paga, assino neste documento firmando o presente recibo nesta data.</p>'+
+'<div class="rc-data">'+RECIBO_ORG.cidade+', '+data+'</div>'+
+'<div class="rc-ass">'+(ass?'<img src="'+ass+'" alt="">':'')+'</div>'+
+'<div class="rc-assl"></div>'+
+'<div class="rc-assn">'+RECIBO_ORG.nome+'</div><div class="rc-assn rc-assc">CNPJ/CPF: '+RECIBO_ORG.cnpj+'</div>'+
+'</section>';
+}
+function assinaturaRecibo(){ try{ return localStorage.getItem("mm_assinatura")||""; }catch(e){ return ""; } }
+function atualizaRecibos(){
+const L=recibosSelecionados(), tot=L.reduce((a,x)=>a+x.valor,0), semDoc=L.filter(x=>!x.doc).length;
+document.getElementById("recResumo").innerHTML="<b>"+NUM(L.length)+"</b> "+(L.length===1?"recibo":"recibos")+" · total de <b>"+BRL(tot)+"</b>"+(semDoc?" · "+NUM(semDoc)+" sem CNPJ/CPF no extrato (o recibo sai sem esse dado)":"");
+const st=document.getElementById("recAssStatus"); st.textContent=assinaturaRecibo()?"✔ assinatura salva neste navegador":"sem assinatura (sai só a linha para assinar)";
+const lst=document.getElementById("recLista"); if(!lst.classList.contains("hide")){ lst.innerHTML="";
+lst.appendChild(tabela(["Data","Pagador","CNPJ/CPF","Descrição","Conta","Valor"],L.map(x=>({cells:[String(x.diaMov||"").padStart(2,"0")+"/"+String(x.mesMov).padStart(2,"0")+"/"+x.anoMov,x.cliente,x.doc||"-",x.desc,x.conta,x.valor]})))); lst.firstChild.classList.add("tab-texto"); lst.firstChild.style.maxHeight="360px"; }
+}
+function montaRecibos(){
+const c=cfg(), sel=document.getElementById("recConta"), atual=sel.value;
+const contas=[...new Set(LANC.filter(x=>x.tipo==="Receita").map(x=>x.conta).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+sel.innerHTML='<option value="__todas">Todas as contas</option>'+contas.map(k=>'<option></option>').join("");
+contas.forEach((k,i)=>{ sel.options[i+1].value=k; sel.options[i+1].textContent=k; });
+sel.value=contas.indexOf(atual)>-1?atual:"__todas";
+const p=n=>String(n).padStart(2,"0");
+if(!document.getElementById("recDe").value) document.getElementById("recDe").value=c.ano+"-"+p(c.m1)+"-01";
+if(!document.getElementById("recAte").value) document.getElementById("recAte").value=c.ano+"-"+p(c.m2)+"-"+p(new Date(c.ano,c.m2,0).getDate());
+atualizaRecibos();
+}
+function imprimirRecibos(){
+const L=recibosSelecionados(); if(!L.length) return alert("Nenhuma entrada encontrada para o período e a conta escolhidos.");
+if(L.length>300&&!confirm("Serão gerados "+L.length+" recibos (uma página cada). Continuar?")) return;
+const ass=assinaturaRecibo(), host=document.getElementById("printArea");
+host.innerHTML=L.map(x=>htmlRecibo(x,ass)).join("");
+document.body.classList.add("printing","imprimindo-recibos"); window.print();
+}
+window.addEventListener("afterprint",()=>document.body.classList.remove("imprimindo-recibos"));
+document.getElementById("btnRecibos").addEventListener("click",()=>{ document.getElementById("cardRecibos").classList.toggle("hide"); montaRecibos(); });
+["recDe","recAte","recConta","recTransf"].forEach(id=>document.getElementById(id).addEventListener("change",atualizaRecibos));
+document.getElementById("btnRecGo").addEventListener("click",imprimirRecibos);
+document.getElementById("btnRecVer").addEventListener("click",()=>{ const l=document.getElementById("recLista"); l.classList.toggle("hide"); document.getElementById("btnRecVer").textContent=l.classList.contains("hide")?"Ver a lista":"Ocultar a lista"; atualizaRecibos(); });
+document.getElementById("recAssFile").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return;
+const r=new FileReader(); r.onload=()=>{ try{ localStorage.setItem("mm_assinatura",r.result); }catch(err){ alert("Não foi possível salvar a assinatura neste navegador (imagem muito grande?)."); } atualizaRecibos(); }; r.readAsDataURL(f); e.target.value=""; });
+document.getElementById("btnRecAssDel").addEventListener("click",()=>{ try{ localStorage.removeItem("mm_assinatura"); }catch(e){} atualizaRecibos(); });
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
 drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementById("file").click(); });
