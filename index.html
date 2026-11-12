@@ -1817,8 +1817,10 @@ const dec=ehContaDecapolis(x.conta), nome=igrejaDe(x,c); if(!dec&&semAcento(nome
 const k=dec?"MISSÃO DECÁPOLIS (base)":(igrejaNoTexto(nome)||nome), o=novo(k); /* receitas nas contas da Decápolis ficam com a própria missão */ o.rec+=x.valor; o.n++; mesO(o,x.mesMov).rec+=x.valor;
 o.lanc.push({x,tipo:"Receita",por:"cliente"}); return;
 }
-let k=igrejaNoTexto(x.cat), por="categoria";
-if(!k){ k=igrejaNoTexto(x.desc); por="descrição"; }
+/* viagens de supervisão/diretoria não são custo do local: ficam fora da atribuição às igrejas */
+const ehViagem=grupoDespesa(x.cat)!=="custo" && /VIAGE|ESTADIA|ESTADA/.test(semAcento(x.cat));
+let k=ehViagem?null:igrejaNoTexto(x.cat), por="categoria";
+if(!k&&!ehViagem){ k=igrejaNoTexto(x.desc); por="descrição"; }
 const v=-x.valor;
 if(!k){ semIgreja+=v; semCat[x.cat||"(sem categoria)"]=(semCat[x.cat||"(sem categoria)"]||0)+v; return; }
 const g=grupoDespesa(x.cat), o=novo(k); o[g]+=v; o.n++; mesO(o,x.mesMov)[g]+=v;
@@ -1834,20 +1836,20 @@ const comCusto=d.lista.filter(o=>o.tot>0.005);
 const k=el("div","kpis");
 k.append(kpi("Custos das missões",T("custo"),"neg","Categorias dos grupos de CUSTOS do fluxo de caixa (2.1 Ministério de Missões, 2.2 Decápolis, 2.3 Internacional): assistência missionária, aluguel, manutenção de obra, doação de imóveis etc."),
 kpi("Investimentos",T("inv"),"alt","Categorias do grupo 2.01 Investimentos (terrenos)."),
-kpi("Outras despesas ligadas a igrejas",T("desp"),null,"Demais despesas cuja categoria ou descrição cita a igreja (viagens, tarifas de envio etc.)."),
+kpi("Outras despesas com o local",T("desp"),null,"Demais despesas cuja categoria ou descrição cita a igreja (ex.: tarifas de envio do repasse). Viagens de supervisão e da diretoria não entram."),
 kpi("Receitas das igrejas",T("rec"),"pos","Contribuições, dízimos e ofertas recebidos das igrejas (cliente do lançamento). As receitas que entram nas contas da Decápolis ficam com a Missão Decápolis."),
 kpi("Igrejas com custo ou despesa",NUM(comCusto.length)),
-kpi("Despesas sem igreja identificada",d.semIgreja,null,"Despesas gerais do MM (administração, diretoria, eventos...) cuja categoria e descrição não citam nenhuma igreja."));
+kpi("Despesas não atribuídas a igrejas",d.semIgreja,null,"Despesas gerais do MM (administração, diretoria, eventos...) cuja categoria e descrição não citam nenhuma igreja, e todas as viagens e estadias de supervisores, diretores e missionários, que não são custo do local."));
 w.appendChild(k);
 const ord=d.lista.slice().sort((a,b)=>b.tot-a.tot||b.rec-a.rec);
 const L=ord.filter(o=>o.tot>0.005).map(o=>({cells:[o.ig,o.custo,o.inv,o.desp,o.tot,o.rec,o.res,PCT(o.rec/(o.tot||1)),NUM(o.n)]}));
 L.push({cls:"tot",cells:["TOTAL DAS IGREJAS COM CUSTO",...["custo","inv","desp","tot","rec","res"].map(f=>comCusto.reduce((a,o)=>a+o[f],0)),PCT(comCusto.reduce((a,o)=>a+o.rec,0)/(comCusto.reduce((a,o)=>a+o.tot,0)||1)),NUM(comCusto.reduce((a,o)=>a+o.n,0))]});
 w.appendChild(card("Custo x despesa por igreja",tabela(["Igreja / obra","Custos da missão","Investimentos","Outras despesas","Total gasto","Receitas da igreja","Resultado","Cobertura","Nº lanç."],L),
-"A igreja é identificada primeiro pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b> (ex.: “PARCELA DO TERRENO EM CAMPO GRANDE”, “TAXA DE ENVIO - REPASSE PARA O CHILE”). Se a descrição citar mais de uma, vale a primeira citada. Catolé e Barbalha entram em Juazeiro do Norte. <b>Custos da missão</b> = categorias dos grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais (viagens, tarifas). Resultado = receitas recebidas da igreja − total gasto; Cobertura = receitas ÷ total gasto. As receitas das contas da Decápolis (ofertas de várias igrejas para a missão) ficam com a Missão Decápolis."));
+"A igreja é identificada primeiro pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b> (ex.: “PARCELA DO TERRENO EM CAMPO GRANDE”, “TAXA DE ENVIO - REPASSE PARA O CHILE”). Se a descrição citar mais de uma, vale a primeira citada. Catolé e Barbalha entram em Juazeiro do Norte. <b>Custos da missão</b> = categorias dos grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local (ex.: tarifas de envio). <b>As viagens e estadias de supervisores, diretores e missionários não entram</b>, mesmo quando a descrição cita a igreja visitada: elas ficam em “Despesas não atribuídas a igrejas”. Resultado = receitas recebidas da igreja − total gasto; Cobertura = receitas ÷ total gasto. As receitas das contas da Decápolis (ofertas de várias igrejas para a missão) ficam com a Missão Decápolis."));
 const g=el("div","grid2");
 const top=comCusto.slice().sort((a,b)=>b.tot-a.tot).slice(0,15).reverse();
 g.appendChild(card("Total gasto por igreja (15 maiores)",svgBarras(top.map(o=>({l:o.ig.replace(/^IDPB /,""),v:o.tot,c:"#e0364f"})),{horizontal:true,w:700})));
-g.appendChild(card("Despesas sem igreja identificada — por categoria",svgBarras(d.semCat.slice(0,15).reverse().map(o=>({l:o.k,v:o.v,c:"#94a3b8"})),{horizontal:true,w:700})));
+g.appendChild(card("Despesas não atribuídas a igrejas — por categoria",svgBarras(d.semCat.slice(0,15).reverse().map(o=>({l:o.k,v:o.v,c:"#94a3b8"})),{horizontal:true,w:700})));
 w.appendChild(g);
 const soRec=ord.filter(o=>o.tot<=0.005&&o.rec>0.005).sort((a,b)=>b.rec-a.rec);
 if(soRec.length) w.appendChild(card("Igrejas sem custo identificado no período (apenas receitas)",tabela(["Igreja","Receitas da igreja","Nº lanç."],soRec.map(o=>({cells:[o.ig,o.rec,NUM(o.n)]})).concat([{cls:"tot",cells:["TOTAL",soRec.reduce((a,o)=>a+o.rec,0),NUM(soRec.reduce((a,o)=>a+o.n,0))]}]))));
