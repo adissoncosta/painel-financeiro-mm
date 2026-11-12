@@ -499,7 +499,7 @@ body.imprimindo-recibos #printArea .recibo:last-child{break-after:auto}
 <button class="sec" id="btnRecAssDel" type="button">Remover assinatura</button>
 </div>
 <div id="recLista" class="hide" style="margin-top:12px"></div>
-<div class="note">Um recibo por entrada <b>realizada</b> (Conciliado, Quitado ou Transferido) na conta e no período escolhidos, no modelo da IDPB. Mudam em cada recibo apenas: nome e CNPJ/CPF de quem pagou, valor (em número e por extenso), descrição do lançamento e data do recebimento. A imagem da assinatura fica salva <b>somente neste navegador</b> — não é publicada no site nem no link de consulta. No diálogo de impressão, escolha “Salvar como PDF” para gerar o arquivo.</div>
+<div class="note">Um recibo por entrada <b>realizada</b> (Conciliado, Quitado ou Transferido) do banco e do período escolhidos, no modelo da IDPB, em ordem de data e com os recibos do mesmo pagador no mesmo dia em sequência — a mesma ordem da lista. O PDF é sugerido com o nome “Recibos - banco - período”. Mudam em cada recibo apenas: nome e CNPJ/CPF de quem pagou, valor (em número e por extenso), descrição do lançamento e data do recebimento. A imagem da assinatura fica salva <b>somente neste navegador</b> — não é publicada no site nem no link de consulta. No diálogo de impressão, escolha “Salvar como PDF” para gerar o arquivo.</div>
 </div>
 <div class="card hide" id="cardPrintSup">
 <h3>Imprimir contribuições por diretoria / supervisão</h3>
@@ -2530,9 +2530,12 @@ lst.appendChild(tabela(["Data","Pagador","CNPJ/CPF","Descrição","Conta","Valor
 function montaRecibos(){
 const c=cfg(), sel=document.getElementById("recConta"), atual=sel.value;
 const contas=[...new Set(LANC.filter(x=>x.tipo==="Receita").map(x=>x.conta).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
-sel.innerHTML='<option value="__todas">Todas as contas</option>'+contas.map(k=>'<option></option>').join("");
-contas.forEach((k,i)=>{ sel.options[i+1].value=k; sel.options[i+1].textContent=k; });
-sel.value=contas.indexOf(atual)>-1?atual:"__todas";
+sel.innerHTML=contas.map(k=>'<option></option>').join("");
+contas.forEach((k,i)=>{ sel.options[i].value=k; sel.options[i].textContent=k; });
+/* recibos são gerados por banco: lembra o último banco usado; na primeira vez, o banco com mais entradas */
+let ult=""; try{ ult=localStorage.getItem("mm_rec_conta")||""; }catch(e){}
+const maisUsado=contas.slice().sort((a,b)=>LANC.filter(x=>x.conta===b&&x.tipo==="Receita").length-LANC.filter(x=>x.conta===a&&x.tipo==="Receita").length)[0]||"";
+sel.value=contas.indexOf(atual)>-1?atual:(contas.indexOf(ult)>-1?ult:maisUsado);
 const p=n=>String(n).padStart(2,"0");
 if(!document.getElementById("recDe").value) document.getElementById("recDe").value=c.ano+"-"+p(c.m1)+"-01";
 if(!document.getElementById("recAte").value) document.getElementById("recAte").value=c.ano+"-"+p(c.m2)+"-"+p(new Date(c.ano,c.m2,0).getDate());
@@ -2543,11 +2546,16 @@ const L=recibosSelecionados(); if(!L.length) return alert("Nenhuma entrada encon
 if(L.length>300&&!confirm("Serão gerados "+L.length+" recibos (uma página cada). Continuar?")) return;
 const ass=assinaturaRecibo(), host=document.getElementById("printArea");
 host.innerHTML=L.map(x=>htmlRecibo(x,ass)).join("");
+/* nome sugerido para o PDF: Recibos - <banco> - <período> */
+const br=d=>d?d.split("-").reverse().join("-"):"";
+const tituloAntigo=document.title; document.title=("Recibos - "+document.getElementById("recConta").value+" - "+br(document.getElementById("recDe").value)+" a "+br(document.getElementById("recAte").value)).replace(/[\\\/:*?"<>|]/g,"-");
+window.addEventListener("afterprint",function volta(){ document.title=tituloAntigo; window.removeEventListener("afterprint",volta); });
 document.body.classList.add("printing","imprimindo-recibos"); window.print();
 }
 window.addEventListener("afterprint",()=>document.body.classList.remove("imprimindo-recibos"));
 document.getElementById("btnRecibos").addEventListener("click",()=>{ document.getElementById("cardRecibos").classList.toggle("hide"); montaRecibos(); });
 ["recDe","recAte","recConta","recTransf"].forEach(id=>document.getElementById(id).addEventListener("change",atualizaRecibos));
+document.getElementById("recConta").addEventListener("change",e=>{ try{ localStorage.setItem("mm_rec_conta",e.target.value); }catch(err){} });
 document.getElementById("btnRecGo").addEventListener("click",imprimirRecibos);
 document.getElementById("btnRecVer").addEventListener("click",()=>{ const l=document.getElementById("recLista"); l.classList.toggle("hide"); document.getElementById("btnRecVer").textContent=l.classList.contains("hide")?"Ver a lista":"Ocultar a lista"; atualizaRecibos(); });
 document.getElementById("recAssFile").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return;
