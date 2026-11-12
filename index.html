@@ -401,7 +401,8 @@ const SALDOS_PADRAO = {
 "10 - BANCO BRADESCO MM":5989.93, "11 - BRADESCO MM - APLICAÇÃO":0, "16 - PAGSEGURO - MM":111401.33,
 "17 - PAGSEGURO DECÁPOLIS":2437.40, "18 - CAIXA MM":580.70, "19 - CAIXA MISSÃO INTERNACIONAL":0,
 "20 - CAIXA MISSÃO DECÁPOLIS":0, "20 - CAIXA DECAPÓLIS":0, "21 - CAIXA EMT":2656.54,
-"22 - CARAVANA DE IMPACTO EMT":0, "23 - MERCADO PAGO - MM":2640.30, "24 - MERCADO PAGO EMT":1614.02
+"22 - CARAVANA DE IMPACTO EMT":0, "23 - MERCADO PAGO - MM":2640.30, "24 - MERCADO PAGO EMT":1614.02,
+"25 - ADIANTAMENTO DE VIAGENS MM":0
 };
 /* árvore do fluxo de caixa: [nivel, rotulo, tipo, chave]
 tipo: G=grupo (soma dos filhos), L=categoria, S=regra especial */
@@ -411,6 +412,7 @@ const FLUXO = [
 ["S","REPASSE NACIONAL PARA O MM","rep_nac"],
 ["S","REPASSE RECEBIDO DO MM NA MISSÃO DECÁPOLIS (entrada na conta 17)","rep_dec_in"],
 ["S","TRANSFERÊNCIAS INTERNAS ENTRE CONTAS MM, INCLUSIVE SIM 2026 (líquido — devem se anular)","transf_int"],
+["S","ADIANTAMENTOS DE VIAGEM — CONTA 25 (envios e devoluções; líquido — devem se anular)","adiant_viagem"],
 ["G","1 - RECEITAS IDPB NACIONAL",[["L",CAT.c45],["L",CAT.dsec],["L",CAT.anu]]],
 ["G","2 - RECEITAS MINISTÉRIO MISSÕES",[
 ["G","2.1 - CONTRIBUIÇÕES DO MINISTÉRIO MISSÕES",[["L",CAT.c75],["L",CAT.dp90],["L","VENDA DE LIVROS - MM"]]],
@@ -422,7 +424,8 @@ const FLUXO = [
 ["G","3 - OUTRAS ENTRADAS",[
 ["G","3.2 - ENTRADAS MISSÕES",[["L","3.2.1 - VALORES DE TERCEIROS MISSÕES"]]],
 ["G","3.3 - ENTRADAS DECÁPOLIS",[["L","3.3.1 - VALORES DE TERCEIROS DECÁPOLIS"]]]
-]]
+]],
+["S","OUTRAS RECEITAS EM CATEGORIAS AINDA NÃO PREVISTAS NO FLUXO","outras_rec"]
 ]],
 ["TOTPAG","TOTAL DE PAGAMENTOS",[
 ["S","REPASSE DE VALORES NACIONAL: 4,5%, DIZ E ANUIDADES","rep_nac_out"],
@@ -433,7 +436,7 @@ const FLUXO = [
 ["G","2.01 - INVESTIMENTOS MM",[["L","TERRENOS MM"]]],
 ["G","2.02 - ASSISTÊNCIA ECLESIÁSTICA DIRETORES E SUPERVISORES",[["L","ASSIST. ECLESIÁSTICA DIRETOR INTERNACIONAL"],["L","ASSIST. ECLESIÁSTICA DIRETOR REGIONAL"],["L","ASSISTÊNCIA ECLESIÁSTICA AOS SUPERVISORES MM"]]],
 ["G","2.03 - VIAGENS E ESTADIAS - MISSÕES",[["L","VIAGENS E ESTADIAS DE DIRETORES"],["L","VIAGENS E ESTADIAS DE MISSIONÁRIOS"],["L","VIAGENS E ESTADIAS DE SUPERVISORES"]]],
-["G","2.05 - DESPESAS GERAIS ADMINISTRATIVAS - MISSÕES",[["L","COMBUSTÍVEIS E LUBRIFICANTES - MISSÕES"],["L","DESPESAS COM LOCOMOÇÃO - MM"],["L","EQUIPAMENTOS DE INFORMATICA - MM"],["L","LANCHES E REFEIÇOES - MISSÕES"],["L","LOCAÇÃO DE IMÓVEIS - MM"],["L","MANUTENÇÃO DE EQUIPAMENTOS - MISSÕES"],["L","MATERIAL DE EXPEDIENTE - MISSÕES"],["L","MATERIAL DE USO E CONSUMO - MM"],["L","TELEFONE/INTERNET - MISSÕES"],["L","ÁGUA E LUZ - MM"]]],
+["G","2.05 - DESPESAS GERAIS ADMINISTRATIVAS - MISSÕES",[["L","COMBUSTÍVEIS E LUBRIFICANTES - MISSÕES"],["L","DESPESAS COM LOCOMOÇÃO - MM"],["L","EQUIPAMENTOS DE INFORMATICA - MM"],["L","FRETES E CARRETOS - MM"],["L","MATERIAL DE INFORMATICA - MM"],["L","LANCHES E REFEIÇOES - MISSÕES"],["L","LOCAÇÃO DE IMÓVEIS - MM"],["L","MANUTENÇÃO DE EQUIPAMENTOS - MISSÕES"],["L","MATERIAL DE EXPEDIENTE - MISSÕES"],["L","MATERIAL DE USO E CONSUMO - MM"],["L","SERVIÇOS DE MANUTENÇÃO E REFORMAS - MM"],["L","TELEFONE/INTERNET - MISSÕES"],["L","ÁGUA E LUZ - MM"]]],
 ["G","2.06 - SERVIÇOS DE TERCEIROS PESSOA FÍSICA",[["L","SERVIÇOS DE INFORMATICA - MISSÕES"]]],
 ["G","2.07 - SERVIÇOS DE TERCEIRO - PJ MM",[["L","HONORÁRIOS CONTÁBEIS MM"],["L","SERVIÇOS PJ - MISSÕES"]]],
 ["G","2.08 - CUSTO ESCOLA DE MISSOES TRANSCULTURAL",[["L","CUSTO COM LOCOMOÇÃO -EMT"]]],
@@ -460,9 +463,11 @@ const FLUXO = [
 ["G","2.02.41 - MISSÃO TIANGUÁ",[["L","MANUTENÇÃO DE OBRA - TIANGUÁ"]]],
 ["G","2.02.42 - MISSÃO RIO DE JANEIRO",[["L","MANUTENÇÃO OBRA - RIO DE JANEIRO"]]],
 ["G","2.02.43 - MISSÃO SANTA RITA",[["L","MANUTENÇÃO DE OBRA - SANTA RITA"]]],
-["G","2.02.44 - MISSÃO VELHA",[["L","MANUTENÇÃO DE OBRA - MISSÃO VELHA"]]]
+["G","2.02.44 - MISSÃO VELHA",[["L","MANUTENÇÃO DE OBRA - MISSÃO VELHA"]]],
+["G","MISSÃO ARACAJU",[["L","MANUTENÇÃO DE OBRA - ARACAJU"]]],
+["G","MISSÃO RECIFE",[["L","MANUTENÇÃO OBRA - RECIFE"]]]
 ]],
-["G","2.2 - CUSTOS DA MISSÃO DECAPOLIS",[["L","ALUGUEL E ARRENDAMENTO - DECÁPOLIS"],["L","ASSISTÊNCIA MISSIONARIA - DECÁPOLIS"],["L","COMBUSTÍVEL E LUBRIFICANTES - DECÁPOLIS"],["L","DESPESA COM ÁGUA, LUZ E TELEFONE - DECÁPOLIS"],["L","DESPESAS COM SERVIÇOS GRÁFICOS - DECÁPOLIS"],["L","FRETES E CARRETOS - DECÁPOLIS"],["L","MANUTENÇÃO DE BASE MISSIONÁRIA - DECÁPOLIS"],["L","MANUTENÇÃO DE VEICULOS - DECÁPOLIS"],["L","SERVIÇOS PJ - DECÁPOLIS"],["L","VIAGENS E ESTADAS - DECAPOLIS"]]],
+["G","2.2 - CUSTOS DA MISSÃO DECAPOLIS",[["L","ALUGUEL E ARRENDAMENTO - DECÁPOLIS"],["L","ASSISTÊNCIA MISSIONARIA - DECÁPOLIS"],["L","COMBUSTÍVEL E LUBRIFICANTES - DECÁPOLIS"],["L","DESPESA COM ÁGUA, LUZ E TELEFONE - DECÁPOLIS"],["L","DESPESAS COM SERVIÇOS GRÁFICOS - DECÁPOLIS"],["L","FRETES E CARRETOS - DECÁPOLIS"],["L","LOCAÇÃO DE VEÍCULOS - DECÁPOLIS"],["L","MANUTENÇÃO DE BASE MISSIONÁRIA - DECÁPOLIS"],["L","MANUTENÇÃO DE VEICULOS - DECÁPOLIS"],["L","SERVIÇOS PJ - DECÁPOLIS"],["L","TERRENOS MISSÃO DECÁPOLIS"],["L","VIAGENS E ESTADAS - DECAPOLIS"]]],
 ["G","2.3 - CUSTOS DA MISSÃO INTERNACIONAL",[
 ["G","AMERICA LATINA",[
 ["P","ASSISTÊNCIA MISSIONÁRIA - ARGENTINA",["ASSISTÊNCIA MISSIONARIA - AMERICA LATINA","ARGENTINA"]],
@@ -476,7 +481,8 @@ const FLUXO = [
 ["G","4 - OUTRAS SAÍDAS",[
 ["G","4.2 - VALORES DE TERCEIROS MISSÕES",[["L","4.2.1 - VALORES DE TERCEIROS MISSÕES"]]],
 ["G","4.3 - VALORES DE TERCEIROS DECÁPOLIS",[["L","4.3.1 - VALORES DE TERCEIROS DECÁPOLIS"]]]
-]]
+]],
+["S","OUTRAS DESPESAS EM CATEGORIAS AINDA NÃO PREVISTAS NO FLUXO","outras_desp"]
 ]],
 ["SALDO_FIM","Saldo Final de Caixa"]
 ];
@@ -528,6 +534,7 @@ if(!r || r.every(c=>norm(c)==="")) continue;
 const dm=parseData(r[idx.dataMov]);
 if(!dm) continue;
 const dc=idx.comp!==undefined?parseData(r[idx.comp]):null;
+if(idx.cat!==undefined && semAcento(r[idx.cat])==="SALDO INICIAL") continue; /* abertura de conta: o saldo de partida vem dos "Saldos iniciais" do painel */
 out.push({
 mesMov:dm.m, anoMov:dm.y,
 mesComp:dc?dc.m:dm.m, anoComp:dc?dc.y:dm.y,
@@ -607,10 +614,11 @@ h.appendChild(t); return h;
 function svgBarras(dados,opt){
 opt=opt||{};
 const n=Math.max(dados.length,1);
-const curto=t=>{ const s=String(t); return s.length>30?s.slice(0,29)+"…":s; };
+const lim=opt.horizontal?52:30, curto=t=>{ const s=String(t); return s.length>lim?s.slice(0,lim-1)+"…":s; };
 const maxLab=Math.max(...dados.map(d=>curto(d.l).length),4);
 const W=opt.w||1000;
-const ml=opt.horizontal?Math.min(300,Math.max(120,maxLab*6.4)):64;
+const fonte=n>28?10:(n>18?11.5:13);
+const ml=opt.horizontal?Math.min(430,Math.max(120,maxLab*fonte*0.58+14)):64;
 const mr=opt.horizontal?120:24;
 const mt=18, mb=opt.horizontal?26:(opt.rot?86:48);
 const H=opt.h||(opt.horizontal?Math.max(220,n*26+mt+mb):340);
@@ -619,7 +627,6 @@ const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
 svg.setAttribute("viewBox","0 0 "+W+" "+H); svg.setAttribute("class","chart"); svg.setAttribute("preserveAspectRatio","xMidYMid meet");
 const add=(tag,at,txt)=>{const e=document.createElementNS("http://www.w3.org/2000/svg",tag);
 for(const k in at)e.setAttribute(k,at[k]); if(txt!==undefined)e.textContent=txt; svg.appendChild(e); return e;};
-const fonte=n>28?10:(n>18?11.5:13);
 if(opt.horizontal){
 const bh=(H-mt-mb)/n;
 add("line",{x1:ml,y1:mt,x2:ml,y2:H-mb,stroke:"#cbd5e1"});
@@ -739,13 +746,26 @@ ms.forEach(m=>r[m]=0);
 L.forEach(x=>{ if(semAcento(x.cat)===key && semAcento(x.desc).indexOf(p)>-1 && r[x.mesMov]!==undefined) r[x.mesMov]+=x.valor; });
 return r;
 }
+/* adiantamentos de viagem: transferências que envolvem a conta 25 (envio do adiantamento e devolução do saldo não utilizado) */
+const ehAdiantViagem = x => { const ct=semAcento(x.conta), d=semAcento(x.desc);
+return ct.indexOf("ADIANTAMENTO DE VIAGE")>-1 || /^25\s*-/.test(ct) || d.indexOf("REQUERIMENTO PARA VIAGEM")>-1 || d.indexOf("RELATORIO DE VIAGEM")>-1; };
 function somaEspecial(L,regra,ms){
 const r={}; ms.forEach(m=>r[m]=0);
 L.forEach(x=>{
 if(r[x.mesMov]===undefined) return;
 const cat=semAcento(x.cat), d=semAcento(x.desc), ct=semAcento(x.conta);
 const ent=cat==="TRANSFERENCIA DE ENTRADA", sai=cat==="TRANSFERENCIA DE SAIDA";
+if(regra==="outras_rec"||regra==="outras_desp"){
+if(ent||sai) return;
+if(catsDoFluxo().has(cat)) return;
+if(regra==="outras_rec"&&x.tipo==="Receita") r[x.mesMov]+=x.valor;
+if(regra==="outras_desp"&&x.tipo!=="Receita") r[x.mesMov]+=x.valor;
+return;
+}
 if(!ent&&!sai) return;
+const adv=ehAdiantViagem(x);
+if(regra==="adiant_viagem"){ if(adv) r[x.mesMov]+=x.valor; return; }
+if(adv) return;
 const temDec=d.indexOf("DECAPOLIS")>-1, entreContas=d.indexOf("ENTRE CONTAS")>-1, rep=d.indexOf("REPASSE")>-1, q45=(d.indexOf("4,5%")>-1||d.indexOf("4.5%")>-1), ehSIM=d.indexOf("SIM")>-1;
 switch(regra){
 case "rep_nac": if(ent&&rep&&!temDec&&!entreContas&&!ehSIM) r[x.mesMov]+=x.valor; break;
@@ -930,13 +950,16 @@ contrib:Object.values(porContrib).sort((a,b)=>b.tot-a.tot),
 cc:Object.entries(porCC).sort((a,b)=>b[1]-a[1])};
 }
 /* --- categorias previstas na estrutura do fluxo --- */
+let _catsFluxo=null;
 function catsDoFluxo(){
+if(_catsFluxo) return _catsFluxo;
 const set=new Set();
 (function walk(ns){ ns.forEach(n=>{
 if(n[0]==="G") walk(n[2]);
 else if(n[0]==="L") set.add(semAcento(n[1]));
 else if(n[0]==="P") set.add(semAcento(n[2][0]));
 }); })(FLUXO.filter(x=>x[0]==="TOTREC"||x[0]==="TOTPAG").reduce((a,x)=>a.concat(x[2]),[]));
+_catsFluxo=set;
 return set;
 }
 /* --- pontos de atenção --- */
@@ -945,7 +968,12 @@ const p=[], rm=resumoMensal(c), conta=porConta(c), f=fluxo(c);
 const T=(a,k)=>a.reduce((x,o)=>x+o[k],0);
 const recOp=T(rm,"recOp"), despOp=T(rm,"despOp"), tIn=T(rm,"tIn"), tOut=T(rm,"tOut");
 if(recOp-despOp<0) p.push("Resultado operacional negativo em "+BRL(despOp-recOp)+" — as despesas operacionais equivalem a "+PCT(despOp/(recOp||1))+" das receitas operacionais.");
-if(Math.abs(tIn-tOut)>0.01) p.push("Transferências sem contrapartida: entradas de "+BRL(tIn)+" contra saídas de "+BRL(tOut)+" (líquido de "+BRL(tIn-tOut)+"). Transferências entre contas próprias deveriam se anular.");
+{ const rp=repasses(c), intK=["dec_sai","dec_ent","cart_sai","cart_ent","sim_sai","sim_ent","adv_sai","adv_ent","out_sai","out_ent"], liq=rp.soma(intK);
+if(Math.abs(liq)>0.01) p.push("Transferências entre contas próprias sem contrapartida: o líquido das transferências internas é "+BRL(liq)+" (deveria ser zero). Verifique na aba Repasses e transferências qual par não fecha.");
+if(rp.T.nao_class.n) p.push(NUM(rp.T.nao_class.n)+" transferência(s) sem classificação, somando "+BRL(rp.T.nao_class.tot)+" — confira a descrição desses lançamentos.");
+const adv=adiantamentos(c), aberto=adv.lista.filter(o=>Math.abs(o.saldo)>0.01);
+if(aberto.length) p.push("Adiantamentos de viagem aguardando prestação de contas (saldo na conta 25): "+aberto.map(o=>o.p+" "+BRL(o.saldo)).join("; ")+" — total de "+BRL(adv.saldo)+". As despesas da viagem devem ser lançadas na conta 25 e o saldo não utilizado devolvido.");
+}
 const paradas=conta.filter(o=>o.n===0&&o.ini!==0).map(o=>o.conta);
 if(paradas.length) p.push("Contas com saldo anterior e sem nenhum lançamento no período: "+paradas.join("; ")+".");
 const vt=base(c,false).filter(x=>semAcento(x.cat).indexOf("VALORES DE TERCEIROS")>-1);
@@ -971,7 +999,7 @@ if(!k||k.indexOf("TRANSFERENCIA")>-1||conhecidas.has(k)) return;
 fora[x.cat]=(fora[x.cat]||0)+x.valor; });
 const listaFora=Object.entries(fora).filter(o=>Math.abs(o[1])>0.005).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
 if(listaFora.length) p.push("Categorias com movimento que não constam da estrutura do fluxo de caixa (e por isso não aparecem nele): "+
-listaFora.map(o=>o[0]+" "+BRL(o[1])).join("; ")+". Inclua-as na estrutura para que o fluxo feche.");
+listaFora.map(o=>o[0]+" "+BRL(o[1])).join("; ")+". Elas aparecem no fluxo nas linhas “Outras receitas/despesas em categorias ainda não previstas”; peça a inclusão na estrutura para que fiquem no grupo correto.");
 return p;
 }
 function viewPainel(c){
@@ -1223,6 +1251,21 @@ const tot={}; ms.forEach(m=>tot[m]=Object.values(G).reduce((a,o)=>a+(o.v[m]||0),
 const total=Object.values(G).reduce((a,o)=>a+o.tot,0);
 return {ms,G,P,T,M,tot,total,n:L.length};
 }
+/* --- adiantamentos de viagem (conta 25) --- */
+function adiantamentos(c){
+const L=base(c,false).filter(x=>ehAdiantViagem(x)||/^25\s*-/.test(semAcento(x.conta))), P={};
+const nome=x=>{ const d=semAcento(x.desc); for(const p of PESSOAS_VIAGEM){ if(d.indexOf(p[0])>-1) return p[1]; } return "(sem nome na descrição)"; };
+L.forEach(x=>{
+const na25=/^25\s*-/.test(semAcento(x.conta))||semAcento(x.conta).indexOf("ADIANTAMENTO DE VIAGE")>-1;
+if(!na25) return; /* olha só a perna da conta 25 (a outra perna é a contrapartida na conta de origem) */
+const p=nome(x), o=P[p]=P[p]||{p,env:0,desp:0,dev:0,n:0}; o.n++;
+const transf=semAcento(x.cat).indexOf("TRANSFERENCIA")>-1;
+if(transf&&x.valor>0) o.env+=x.valor; else if(transf) o.dev+=-x.valor; else o.desp+=-x.valor;
+});
+const lista=Object.values(P).map(o=>({...o,saldo:o.env-o.desp-o.dev})).sort((a,b)=>b.saldo-a.saldo);
+const t=k=>lista.reduce((a,o)=>a+o[k],0);
+return {lista,env:t("env"),desp:t("desp"),dev:t("dev"),saldo:t("saldo")};
+}
 function viewViagens(c){
 const d=viagens(c), ms=d.ms, w=el("div");
 const colsMes=ms.map(m=>MESES[m-1]+"/"+String(c.ano).slice(2));
@@ -1238,6 +1281,14 @@ l1.push({cells:[g].concat(ms.map(m=>o.v[m]||0)).concat([o.tot,PCT(o.tot/(d.total
 l1.push({cls:"tot",cells:["TOTAL DE VIAGENS E ESTADIAS"].concat(ms.map(m=>d.tot[m])).concat([d.total,PCT(1),NUM(d.n)])});
 w.appendChild(card("Viagens e estadias — resumo por grupo",tabela(hdr,l1),
 "Grupo definido pela categoria do lançamento; pessoa e tipo de gasto identificados no texto da descrição. Não inclui Locomoção MM, Locomoção EMT nem viagens de Missionários. Decápolis é atribuída ao Pr. FRANCISCO JOSÉ e JOÃO NUNES aparece somente como Diretor Internacional."));
+{ const a=adiantamentos(c);
+if(a.lista.length){
+const la=a.lista.map(o=>({cells:[o.p,o.env,-o.desp,-o.dev,o.saldo,NUM(o.n)]}));
+la.push({cls:"tot",cells:["TOTAL",a.env,-a.desp,-a.dev,a.saldo,NUM(a.lista.reduce((s,o)=>s+o.n,0))]});
+w.appendChild(card("Adiantamentos de viagem — conta 25",tabela(["Pessoa","Adiantado","Despesas pagas pela conta 25","Devolvido","Saldo a prestar contas","Nº lanç."],la),
+"Considera apenas os lançamentos da conta 25 - ADIANTAMENTO DE VIAGENS MM: entradas por transferência = adiantamento enviado; transferências de saída = devolução do saldo não utilizado; demais saídas = despesas da viagem pagas com o adiantamento. O saldo é o valor ainda em poder do viajante, aguardando prestação de contas. Os adiantamentos não são despesa: a despesa aparece quando os gastos da viagem são lançados."));
+}
+}
 w.appendChild(card("Evolução mensal do gasto total",svgLinha(ms.map(m=>({l:MESES[m-1]+"/"+String(c.ano).slice(2),v:d.tot[m]})),{h:320})));
 w.appendChild(card("Participação de cada grupo no total",svgBarras(ORDEM_GRUPO.filter(g=>d.G[g]).slice().reverse().map(g=>({l:g,v:d.G[g].tot})),{horizontal:true,h:260})));
 ORDEM_GRUPO.forEach(g=>{
@@ -1397,6 +1448,8 @@ const TIPOS_TRANSF=[
 ["cart_ent","Transferência entre contas — cartões — entrada","INT"],
 ["sim_sai","Repasse/empréstimo ao SIM 2026 — saída","INT"],
 ["sim_ent","Repasse/empréstimo ao SIM 2026 — entrada","INT"],
+["adv_sai","Adiantamento de viagem (conta 25) — saída","INT"],
+["adv_ent","Adiantamento de viagem (conta 25) — entrada","INT"],
 ["out_sai","Outras transferências entre contas — saída","INT"],
 ["out_ent","Outras transferências entre contas — entrada","INT"],
 ["nao_class","Transferências não classificadas","EXT"]
@@ -1405,6 +1458,7 @@ function tipoTransf(x){
 const cat=semAcento(x.cat), d=semAcento(x.desc);
 const ent=cat==="TRANSFERENCIA DE ENTRADA", sai=cat==="TRANSFERENCIA DE SAIDA";
 if(!ent&&!sai) return "";
+if(ehAdiantViagem(x)) return ent?"adv_ent":"adv_sai";
 const temDec=d.indexOf("DECAPOLIS")>-1, ehSIM=d.indexOf("SIM")>-1, cart=d.indexOf("CART")>-1;
 const entreContas=d.indexOf("ENTRE CONTAS")>-1, rep=d.indexOf("REPASSE")>-1;
 const q45=(d.indexOf("4,5%")>-1||d.indexOf("4.5%")>-1);
@@ -1434,7 +1488,7 @@ return {cells:["    "+rot].concat(ms.map(m=>o.v[m])).concat([o.tot,NUM(o.n)])}; 
 const grupo=(rot)=>({cls:"g1",cells:[rot].concat(ms.map(()=>"")).concat(["",""])});
 const sub=(rot,ks,cls)=>({cls:cls||"sub",cells:[rot].concat(ms.map(m=>d.soma(ks,m))).concat([d.soma(ks),NUM(ks.reduce((a,k)=>a+d.T[k].n,0))])});
 const ent=["ent_nac"], sai=["sai_45","sai_int","nao_class"];
-const internos=["dec_sai","dec_ent","cart_sai","cart_ent","sim_sai","sim_ent","out_sai","out_ent"];
+const internos=["dec_sai","dec_ent","cart_sai","cart_ent","sim_sai","sim_ent","adv_sai","adv_ent","out_sai","out_ent"];
 const linhas=[];
 linhas.push(grupo("ENTRADAS EXTERNAS (entram no caixa do MM)"));
 ent.forEach(k=>linhas.push(lin(k)));
@@ -1443,7 +1497,7 @@ linhas.push(grupo("SAÍDAS EXTERNAS (saem do caixa do MM)"));
 sai.forEach(k=>linhas.push(lin(k)));
 linhas.push(sub("Subtotal de saídas externas",sai));
 linhas.push(grupo("TRANSFERÊNCIAS INTERNAS ENTRE CONTAS DO MM (o líquido deve ser zero)"));
-[["dec_sai","dec_ent","Líquido Decápolis"],["cart_sai","cart_ent","Líquido cartões"],["sim_sai","sim_ent","Líquido SIM 2026"],["out_sai","out_ent","Líquido outras entre contas"]].forEach(par=>{
+[["dec_sai","dec_ent","Líquido Decápolis"],["cart_sai","cart_ent","Líquido cartões"],["sim_sai","sim_ent","Líquido SIM 2026"],["adv_sai","adv_ent","Líquido adiantamentos de viagem"],["out_sai","out_ent","Líquido outras entre contas"]].forEach(par=>{
 linhas.push(lin(par[0])); linhas.push(lin(par[1])); linhas.push(sub(par[2],[par[0],par[1]]));
 });
 linhas.push(sub("Subtotal das transferências internas (líquido)",internos));
