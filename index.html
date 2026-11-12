@@ -366,6 +366,8 @@ main{padding:14px 12px 40px}
 .salvo{padding:8px 14px;font-size:12.5px}
 .salvo button{height:30px;font-size:12px}
 }
+.tab-texto td.num:not(:last-child),.tab-texto th:not(:last-child){text-align:left}
+.tab-texto td:nth-child(4){white-space:normal;min-width:320px}
 </style>
 </head>
 <body>
@@ -1790,6 +1792,86 @@ const linhas=Object.values(M).sort((a,b)=>a.obra.localeCompare(b.obra,"pt-BR"));
 const invTot=linhas.reduce((a,o)=>a+o.inv,0), retTot=linhas.reduce((a,o)=>a+o.ret,0);
 return {linhas,invTot,retTot,despTotal,retTotalIgrejas,naoAtribuido:despTotal-invTot};
 }
+/* ===== Custo x despesa por igreja: identifica a igreja pela categoria e, se não houver, pela descrição ===== */
+let IGREJA_SEL="";
+let _rxIgreja=null;
+function rxIgreja(){ if(!_rxIgreja) _rxIgreja=ALIAS_DESPESA.map(o=>{ const k=semAcento(o[0]), prefixo=["PORTUG","TIANGU","GOIAN"].indexOf(k)>-1; /* chaves que são início de palavra (PORTUGAL/PORTUGUAL, TIANGUÁ, GOIÂNIA/GOIANIRA) */
+return [new RegExp("(^|[^A-Z])"+k.replace(/[.*+?^${}()|[\]\\\/]/g,"\\$&")+(prefixo?"":"([^A-Z]|$)")),o[1]]; }); return _rxIgreja; }
+function igrejaNoTexto(t){ const s=semAcento(t); let best=null,pos=1e9; rxIgreja().forEach(o=>{ const m=o[0].exec(s); if(m&&m.index<pos){ pos=m.index; best=o[1]; } }); return best; }
+let _grupoCat=null;
+function grupoDespesa(cat){
+if(!_grupoCat){ _grupoCat={}; const pag=FLUXO.find(x=>x[0]==="TOTPAG")[2];
+pag.forEach(g=>{ if(g[0]!=="G") return; const nome=semAcento(g[1]);
+const marca=nome.indexOf("CUSTOS")>-1?"custo":"desp";
+(function wk(ns,tipo){ ns.forEach(n=>{ if(n[0]==="G") wk(n[2], semAcento(n[1]).indexOf("INVESTIMENTO")>-1?"inv":tipo); else if(n[0]==="L") _grupoCat[semAcento(n[1])]=tipo; else if(n[0]==="P") _grupoCat[semAcento(n[2][0])]=tipo; }); })(g[2],marca); }); }
+return _grupoCat[semAcento(cat)]||"desp";
+}
+function custoIgrejas(c){
+const ms=periodoMeses(c), L=base(c,false).filter(x=>!ehTransf(x)), M={};
+const novo=k=>M[k]=M[k]||{ig:k,rec:0,custo:0,inv:0,desp:0,n:0,mes:{},lanc:[]};
+const mesO=(o,m)=>o.mes[m]=o.mes[m]||{rec:0,custo:0,inv:0,desp:0};
+let semIgreja=0; const semCat={};
+L.forEach(x=>{
+if(x.tipo==="Receita"){
+const dec=ehContaDecapolis(x.conta), nome=igrejaDe(x,c); if(!dec&&semAcento(nome).indexOf("IDPB")!==0) return;
+const k=dec?"MISSÃO DECÁPOLIS (base)":(igrejaNoTexto(nome)||nome), o=novo(k); /* receitas nas contas da Decápolis ficam com a própria missão */ o.rec+=x.valor; o.n++; mesO(o,x.mesMov).rec+=x.valor;
+o.lanc.push({x,tipo:"Receita",por:"cliente"}); return;
+}
+let k=igrejaNoTexto(x.cat), por="categoria";
+if(!k){ k=igrejaNoTexto(x.desc); por="descrição"; }
+const v=-x.valor;
+if(!k){ semIgreja+=v; semCat[x.cat||"(sem categoria)"]=(semCat[x.cat||"(sem categoria)"]||0)+v; return; }
+const g=grupoDespesa(x.cat), o=novo(k); o[g]+=v; o.n++; mesO(o,x.mesMov)[g]+=v;
+o.lanc.push({x,tipo:g==="custo"?"Custo da missão":g==="inv"?"Investimento":"Outra despesa",por});
+});
+const lista=Object.values(M).map(o=>({...o,tot:o.custo+o.inv+o.desp,res:o.rec-(o.custo+o.inv+o.desp)}));
+return {ms,lista,semIgreja,semCat:Object.entries(semCat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
+}
+function viewCustoIgrejas(c){
+const d=custoIgrejas(c), w=el("div"), ms=d.ms;
+const T=k=>d.lista.reduce((a,o)=>a+o[k],0);
+const comCusto=d.lista.filter(o=>o.tot>0.005);
+const k=el("div","kpis");
+k.append(kpi("Custos das missões",T("custo"),"neg","Categorias dos grupos de CUSTOS do fluxo de caixa (2.1 Ministério de Missões, 2.2 Decápolis, 2.3 Internacional): assistência missionária, aluguel, manutenção de obra, doação de imóveis etc."),
+kpi("Investimentos",T("inv"),"alt","Categorias do grupo 2.01 Investimentos (terrenos)."),
+kpi("Outras despesas ligadas a igrejas",T("desp"),null,"Demais despesas cuja categoria ou descrição cita a igreja (viagens, tarifas de envio etc.)."),
+kpi("Receitas das igrejas",T("rec"),"pos","Contribuições, dízimos e ofertas recebidos das igrejas (cliente do lançamento). As receitas que entram nas contas da Decápolis ficam com a Missão Decápolis."),
+kpi("Igrejas com custo ou despesa",NUM(comCusto.length)),
+kpi("Despesas sem igreja identificada",d.semIgreja,null,"Despesas gerais do MM (administração, diretoria, eventos...) cuja categoria e descrição não citam nenhuma igreja."));
+w.appendChild(k);
+const ord=d.lista.slice().sort((a,b)=>b.tot-a.tot||b.rec-a.rec);
+const L=ord.filter(o=>o.tot>0.005).map(o=>({cells:[o.ig,o.custo,o.inv,o.desp,o.tot,o.rec,o.res,PCT(o.rec/(o.tot||1)),NUM(o.n)]}));
+L.push({cls:"tot",cells:["TOTAL DAS IGREJAS COM CUSTO",...["custo","inv","desp","tot","rec","res"].map(f=>comCusto.reduce((a,o)=>a+o[f],0)),PCT(comCusto.reduce((a,o)=>a+o.rec,0)/(comCusto.reduce((a,o)=>a+o.tot,0)||1)),NUM(comCusto.reduce((a,o)=>a+o.n,0))]});
+w.appendChild(card("Custo x despesa por igreja",tabela(["Igreja / obra","Custos da missão","Investimentos","Outras despesas","Total gasto","Receitas da igreja","Resultado","Cobertura","Nº lanç."],L),
+"A igreja é identificada primeiro pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b> (ex.: “PARCELA DO TERRENO EM CAMPO GRANDE”, “TAXA DE ENVIO - REPASSE PARA O CHILE”). Se a descrição citar mais de uma, vale a primeira citada. Catolé e Barbalha entram em Juazeiro do Norte. <b>Custos da missão</b> = categorias dos grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais (viagens, tarifas). Resultado = receitas recebidas da igreja − total gasto; Cobertura = receitas ÷ total gasto. As receitas das contas da Decápolis (ofertas de várias igrejas para a missão) ficam com a Missão Decápolis."));
+const g=el("div","grid2");
+const top=comCusto.slice().sort((a,b)=>b.tot-a.tot).slice(0,15).reverse();
+g.appendChild(card("Total gasto por igreja (15 maiores)",svgBarras(top.map(o=>({l:o.ig.replace(/^IDPB /,""),v:o.tot,c:"#e0364f"})),{horizontal:true,w:700})));
+g.appendChild(card("Despesas sem igreja identificada — por categoria",svgBarras(d.semCat.slice(0,15).reverse().map(o=>({l:o.k,v:o.v,c:"#94a3b8"})),{horizontal:true,w:700})));
+w.appendChild(g);
+const soRec=ord.filter(o=>o.tot<=0.005&&o.rec>0.005).sort((a,b)=>b.rec-a.rec);
+if(soRec.length) w.appendChild(card("Igrejas sem custo identificado no período (apenas receitas)",tabela(["Igreja","Receitas da igreja","Nº lanç."],soRec.map(o=>({cells:[o.ig,o.rec,NUM(o.n)]})).concat([{cls:"tot",cells:["TOTAL",soRec.reduce((a,o)=>a+o.rec,0),NUM(soRec.reduce((a,o)=>a+o.n,0))]}]))));
+/* detalhe de uma igreja */
+const det=el("div","card"); det.appendChild(el("h3",null,"Detalhe por igreja"));
+const sel=el("select"); sel.style.minWidth="280px";
+const opcoes=ord.filter(o=>o.tot>0.005).concat(soRec);
+if(!opcoes.find(o=>o.ig===IGREJA_SEL)) IGREJA_SEL=opcoes.length?opcoes[0].ig:"";
+opcoes.forEach(o=>{ const op=el("option",null,o.ig); op.value=o.ig; sel.appendChild(op); }); sel.value=IGREJA_SEL;
+const lin=el("div","naoimprimir"); lin.style.cssText="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap"; lin.appendChild(el("label",null,"Igreja")); lin.appendChild(sel); det.appendChild(lin);
+const corpo=el("div"); det.appendChild(corpo);
+const desenha=()=>{ corpo.innerHTML=""; const o=d.lista.find(x=>x.ig===IGREJA_SEL); if(!o) return;
+const colsMes=ms.map(m=>MESES[m-1]+"/"+String(c.ano).slice(2)), Z=m=>o.mes[m]||{rec:0,custo:0,inv:0,desp:0};
+const lm=[["Receitas da igreja","rec"],["Custos da missão","custo"],["Investimentos","inv"],["Outras despesas","desp"]].filter(([r,f])=>o[f]>0.005).map(([r,f])=>({cells:[r].concat(ms.map(m=>f==="rec"?Z(m)[f]:-Z(m)[f])).concat([f==="rec"?o[f]:-o[f]])}));
+lm.push({cls:"tot",cells:["Resultado"].concat(ms.map(m=>{const z=Z(m);return z.rec-z.custo-z.inv-z.desp;})).concat([o.res])});
+corpo.appendChild(tabela(["Mês a mês"].concat(colsMes).concat(["Total"]),lm));
+const ll=o.lanc.filter(l=>l.tipo!=="Receita").sort((a,b)=>(a.x.mesMov-b.x.mesMov)||((a.x.diaMov||0)-(b.x.diaMov||0)));
+if(ll.length){ const t=el("div"); t.style.marginTop="14px"; t.appendChild(el("h4","secao","Custos e despesas da igreja ("+NUM(ll.length)+")"));
+const tb=tabela(["Data","Tipo","Categoria","Descrição","Identificado pela","Valor"],ll.map(l=>({cells:[(l.x.diaMov?String(l.x.diaMov).padStart(2,"0")+"/":"")+String(l.x.mesMov).padStart(2,"0")+"/"+l.x.anoMov,l.tipo,l.x.cat,l.x.desc,l.por,l.x.valor]}))); tb.classList.add("tab-texto"); t.appendChild(tb); corpo.appendChild(t); }
+};
+sel.onchange=()=>{ IGREJA_SEL=sel.value; desenha(); };
+desenha(); w.appendChild(det);
+return w;
+}
 function viewCusto(c){
 const d=custoRetorno(c), w=el("div");
 const k=el("div","kpis");
@@ -1897,6 +1979,7 @@ const VIEWS=[
 ["viagens","Viagens e estadias",viewViagens],
 ["repasses","Repasses e transferências",viewRepasses],
 ["custo","Custo x retorno por igreja",viewCusto],
+["custoig","Custo x despesa por igreja",viewCustoIgrejas],
 ["decapolis","Missão Decápolis",viewDecapolis],
 ["contas","Contas e saldos",viewContas],
 ["cats","Categorias e CC",viewCats],
@@ -1907,6 +1990,7 @@ const GRUPOS_MENU=[
 ["",["painel"]],
 ["Financeiro",["resumo","fluxo","contas","repasses","lanc"]],
 ["Contribuições e ofertas",["demo","comparativo","ofertas","custo"]],
+["Igrejas",["custoig"]],
 ["Despesas",["viagens","cats"]],
 ["Missões",["decapolis"]],
 ["Assistente",["ia"]]
@@ -1924,6 +2008,7 @@ ofertas:'<path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7S10 2 7 3s0 4 5 4zM12 7s
 custo:'<path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/>',
 viagens:'<path d="M2 16l20-7-3-3-6 2-6-4-2 1 4 5-4 2-2-1-1 1z"/>',
 cats:'<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/>',
+custoig:'<path d="M12 2l3 4h-6zM6 22V10l6-4 6 4v12M10 22v-5h4v5"/>',
 decapolis:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 ia:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/>'
 };
@@ -1957,7 +2042,7 @@ host.innerHTML="";
 try{ const vw=VIEWS.find(v=>v[0]===ABA); host.appendChild(cabecalhoImpressao(vw[1]+(ABA==="comparativo"?" — "+rotCMP():""),c)); host.appendChild(vw[2](c)); }
 catch(e){ const d=el("div","err","Erro ao gerar o relatório: "+e.message); host.appendChild(d); console.error(e); }
 }
-const ORIENT_IMPR={decapolis:"land",painel:"port",resumo:"land",fluxo:"land",demo:"land",comparativo:"land",ofertas:"land",viagens:"land",repasses:"land",custo:"land",contas:"land",cats:"port"};
+const ORIENT_IMPR={custoig:"land",decapolis:"land",painel:"port",resumo:"land",fluxo:"land",demo:"land",comparativo:"land",ofertas:"land",viagens:"land",repasses:"land",custo:"land",contas:"land",cats:"port"};
 function nomeAba(t){ return t.normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[\\\/\?\*\[\]:]/g," ").slice(0,31); }
 function celulaExcel(txt){
 const t=String(txt).trim();
@@ -1967,7 +2052,7 @@ if(/^-?[\d.]+,\d+%$/.test(t)) return t;
 if(/^-?[\d.]+,\d+$/.test(t)||/^-?\d+$/.test(t)) return toNum(t);
 return t;
 }
-const NOME_ABA={decapolis:"Missao Decapolis",painel:"Dashboard",resumo:"Resumo Mensal",fluxo:"Fluxo de Caixa",demo:"Demonstrativo Contribuicoes",comparativo:"Comparativo Contribuicoes",ofertas:"Ofertas Missionarias",viagens:"Viagens e Estadias",repasses:"Repasses e Transferencias",custo:"Custo x Retorno por Igreja",contas:"Contas e Saldos",cats:"Categorias e CC",lanc:"Lancamentos"};
+const NOME_ABA={custoig:"Custo x Despesa Igrejas",decapolis:"Missao Decapolis",painel:"Dashboard",resumo:"Resumo Mensal",fluxo:"Fluxo de Caixa",demo:"Demonstrativo Contribuicoes",comparativo:"Comparativo Contribuicoes",ofertas:"Ofertas Missionarias",viagens:"Viagens e Estadias",repasses:"Repasses e Transferencias",custo:"Custo x Retorno por Igreja",contas:"Contas e Saldos",cats:"Categorias e CC",lanc:"Lancamentos"};
 const FMT_MOEDA='"R$" #,##0.00;("R$" #,##0.00);"-"';
 function valorCelula(txt){
 const t=String(txt).trim();
