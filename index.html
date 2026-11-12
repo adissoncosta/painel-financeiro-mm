@@ -2494,11 +2494,13 @@ return s.split(" ").map(w=>["e","de"].indexOf(w)>-1?w:w.charAt(0).toUpperCase()+
 const MESES_EXT=["janeiro","fevereiro","março","abril","maio","junho","julho","agosto","setembro","outubro","novembro","dezembro"];
 const valorRecibo=v=>Math.abs(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
 function dataNum(x){ return x.anoMov*10000+x.mesMov*100+(x.diaMov||1); }
+/* ordem dos recibos: data do recebimento; no mesmo dia, os lançamentos do mesmo pagador ficam juntos (ex.: um depósito dividido entre oferta e contribuição) */
+const chavePagador=x=>semAcento(x.cliente||"").replace(/\s+/g," ").trim()+"|"+(x.doc?x.doc.replace(/\D/g,""):"");
 function recibosSelecionados(){
 const de=document.getElementById("recDe").value, ate=document.getElementById("recAte").value, conta=document.getElementById("recConta").value, tr=document.getElementById("recTransf").checked;
 const n=s=>s?+s.replace(/-/g,""):null, a=n(de), b=n(ate);
 return LANC.filter(x=>x.tipo==="Receita"&&x.valor>0.004&&realizado(x)&&(tr||!ehTransf(x))&&(conta==="__todas"||x.conta===conta)&&(a===null||dataNum(x)>=a)&&(b===null||dataNum(x)<=b))
-.sort((p,q)=>dataNum(p)-dataNum(q)||p.cliente.localeCompare(q.cliente,"pt-BR"));
+.sort((p,q)=>dataNum(p)-dataNum(q)||chavePagador(p).localeCompare(chavePagador(q),"pt-BR")||String(p.desc).localeCompare(String(q.desc),"pt-BR")||q.valor-p.valor);
 }
 function htmlRecibo(x,ass){
 const esc=t=>String(t==null?"":t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
