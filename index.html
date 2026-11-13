@@ -455,6 +455,15 @@ body.com-dados .rodape{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 .kpi .v{font-size:16px!important;margin-top:6px}
 .card{border-radius:12px}
 }
+.colar-link{margin:22px auto 0;max-width:520px;text-align:left;border-top:1px solid #e3e8ef;padding-top:18px}
+.colar-tit{font-weight:700;color:#1f2937;font-size:14px}
+.colar-txt{font-size:13px;color:#64748b;margin:4px 0 12px;line-height:1.5}
+.colar-linha{display:flex;gap:8px}
+.colar-linha input{flex:1;min-width:0;height:44px!important;font-size:16px!important}
+.colar-linha button{height:44px}
+.colar-erro{margin-top:8px;font-size:12.5px;color:#b42318}
+.colar-erro.hide{display:none}
+#btnInstalar,#btnOcultar{white-space:nowrap;flex-shrink:0}
 </style>
 </head>
 <body>
@@ -490,7 +499,10 @@ body.com-dados .rodape{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
 </div>
 <div id="salvoBox" class="salvo hide"><span id="salvoTxt"></span> <button class="sec" id="btnApagarSalvo" type="button">Remover dados salvos</button></div>
 <div id="erro" class="err hide"></div>
-<div id="vazio" class="vazio hide"><h2>Nenhum relatório disponível</h2><div>Abra o link completo enviado pelo responsável (ele termina com <b>#k=…</b>). Se o link estiver correto, o relatório pode ainda não ter sido publicado.</div></div>
+<div id="vazio" class="vazio hide"><h2>Nenhum relatório disponível</h2><div>Abra o link completo enviado pelo responsável (ele termina com <b>#k=…</b>). Se o link estiver correto, o relatório pode ainda não ter sido publicado.</div>
+<div class="colar-link"><div class="colar-tit">Está usando o app instalado no celular?</div><div class="colar-txt">Cole abaixo o link de acesso que você recebeu. É preciso fazer isso só uma vez: o app guarda o acesso.</div>
+<div class="colar-linha"><input type="text" id="linkColado" placeholder="Cole aqui o link (…#k=…)" autocomplete="off" autocapitalize="off" spellcheck="false"><button type="button" id="btnAbrirLink">Abrir</button></div>
+<div id="linkErro" class="colar-erro hide">Não encontrei a chave nesse link. Copie o link completo, incluindo a parte depois de <b>#k=</b>.</div></div></div>
 <div id="app" class="hide">
 <div class="bar recolhida" id="barra">
 <button type="button" class="filtros-resumo" id="btnFiltros"><span id="filtrosTxt">Filtros</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>
@@ -2646,6 +2658,15 @@ if(pedido){ pedido.prompt(); try{ await pedido.userChoice; }catch(e){} pedido=nu
 else if(ios) document.getElementById("avisoIos").classList.remove("hide");
 });
 document.getElementById("avisoIosOk").addEventListener("click",()=>document.getElementById("avisoIos").classList.add("hide"));
+/* app instalado (principalmente iPhone): a memória do app é separada da do navegador, então a chave do link é colada uma vez aqui */
+document.getElementById("btnAbrirLink").addEventListener("click",()=>{
+const t=document.getElementById("linkColado").value.trim();
+const m=t.match(/k=([A-Za-z0-9_-]{40,})/)||t.match(/^([A-Za-z0-9_-]{40,})$/);
+if(!m){ document.getElementById("linkErro").classList.remove("hide"); return; }
+try{ localStorage.setItem("mm_link_key",m[1]); }catch(e){}
+location.hash="#k="+m[1];
+});
+document.getElementById("linkColado").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("btnAbrirLink").click(); });
 })();
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
