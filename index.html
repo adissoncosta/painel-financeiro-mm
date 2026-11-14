@@ -810,7 +810,9 @@ real:document.getElementById("sit").value==="real",
 cons:document.getElementById("cons").checked
 };
 }
-const igrejaDe = (r,c)=>{ if(!c.cons) return r.cliente; const k=semAcento(r.cliente); return CONSOLIDA[k]||r.cliente; };
+/* nomes de cliente cadastrados de forma diferente para a mesma igreja (sempre unificados) */
+const MESMA_IGREJA = { "IDPB RIO DE JANEIRO - RJ":"IDPB RIO DE JANEIRO", "IDPB NACOES SC (FORQUILHINHA)":"IDPB FORQUILHINHA" };
+const igrejaDe = (r,c)=>{ const n=MESMA_IGREJA[semAcento(r.cliente)]||r.cliente; if(!c.cons) return n; const k=semAcento(n); return CONSOLIDA[k]||n; };
 const realizado = r => REALIZADAS.indexOf(up(r.situacao))>-1;
 function base(c,porComp){
 return LANC.filter(r=>{
@@ -1150,7 +1152,8 @@ const SUPERVISOES = [
 {rot:"Sul",nome:"REGIÃO SUL- PR.ELIAS TORRES",sup:"Pr. Michael Lopes",dir:"Sul, Sudeste e Centro-Oeste",diretor:"Pr. Elias Torres"},
 {rot:"Nordeste 01",nome:"REGIÃO NORDESTE 01- SUPERVISOR PR.SILVANO",sup:"Pr. Silvano",dir:"Norte e Nordeste",diretor:"Pr. Helionildo Moura"},
 {rot:"Nordeste 02",nome:"REGIÃO NORDESTE 02- PR.HUDSON FERNANDES",sup:"Pr. Hudson Fernandes",dir:"Norte e Nordeste",diretor:"Pr. Helionildo Moura"},
-{rot:"Nordeste 03",nome:"REGIÃO NORDESTE 03- PR.FRANCISCO JOSÉ",sup:"Pr. Francisco José",dir:"Norte e Nordeste",diretor:"Pr. Helionildo Moura"}
+{rot:"Nordeste 03",nome:"REGIÃO NORDESTE 03- PR.FRANCISCO JOSÉ",sup:"Pr. Francisco José",dir:"Missão Decápolis",diretor:"Pr. Francisco José"},
+{rot:"Base Decápolis",nome:"BASE MISSIONÁRIA DECÁPOLIS",sup:"Pr. Francisco José",dir:"Missão Decápolis",diretor:"Pr. Francisco José"}
 ];
 const IGREJA_SUP = {
 "Internacional":["IDPB ARGENTINA","IDPB CHILE","IDPB PARAGUAI","IDPB PORTUGAL","IDPB COLÔMBIA"],
@@ -1160,10 +1163,14 @@ const IGREJA_SUP = {
 "Nordeste 01":["IDPB ÁGUA BRANCA","IDPB FORTALEZA","IDPB JUAZEIRO DO NORTE/CE","IDPB PARNAIBA","IDPB PINHEIRO","IDPB RUSSAS-CE","IDPB SÃO LUIS","IDPB TERESINA","IDPB TIANGUÁ","IDPB BARBALHA","IDPB CATOLÉ","IDPB MISSÃO VELHA"],
 "Nordeste 02":["IDPB JOÃO PESSOA","IDPB NATAL","IDPB RECIFE","IDPB GARANHUNS","IDPB CAMPINA GRANDE","IDPB NAZARÉ DA MATA","IDPB SANTA RITA"],
 "Nordeste 03":["IDPB MACEIÓ","IDPB ARACAJU","IDPB PARATINGA","IDPB SALVADOR"]
-}; /* Blumenau: Região Sul (Pr. Michael Lopes); Missão Velha: Nordeste 01 (Pr. Silvano); Santa Rita: Nordeste 02 (Pr. Hudson). Alfenas, Boa Vista e Base Decápolis: categoria Parcerias MM. Demais igrejas não listadas ficam em "Sem supervisão" */
-const SEM_SUP="Sem supervisão", SEM_DIR="Sem diretoria", PARC="Parcerias MM", PARC_CHAVES=["ALFENAS","BOA VISTA","DECAPOLIS"], MAPA_SUP={};
+}; /* Blumenau: Região Sul (Pr. Michael Lopes); Missão Velha: Nordeste 01 (Pr. Silvano); Santa Rita: Nordeste 02 (Pr. Hudson). Alfenas e Boa Vista: categoria Parcerias MM. Pr. Francisco José é diretor da Missão Decápolis (Nordeste 03 e Base Decápolis). Demais igrejas não listadas ficam em "Sem supervisão" */
+const SEM_SUP="Sem supervisão", SEM_DIR="Sem diretoria", PARC="Parcerias MM", PARC_CHAVES=["ALFENAS","BOA VISTA"], MAPA_SUP={};
 Object.keys(IGREJA_SUP).forEach(r=>IGREJA_SUP[r].forEach(ig=>MAPA_SUP[semAcento(ig)]=r));
-function supDe(ig){ const k=semAcento(ig); if(MAPA_SUP[k]) return MAPA_SUP[k]; if(PARC_CHAVES.some(p=>k.indexOf(p)>-1)) return PARC; return SEM_SUP; }
+function supDe(ig){ const k=semAcento(MESMA_IGREJA[semAcento(ig)]||ig); if(MAPA_SUP[k]) return MAPA_SUP[k];
+if(k.indexOf("DECAPOLIS")>-1) return "Base Decápolis";
+if(PARC_CHAVES.some(p=>k.indexOf(p)>-1)) return PARC;
+const canon=igrejaNoTexto(ig); if(canon&&MAPA_SUP[semAcento(canon)]) return MAPA_SUP[semAcento(canon)]; /* variação de nome: reconhece pela cidade */
+return SEM_SUP; }
 function dirDe(rot){ if(rot===PARC) return PARC; const s=SUPERVISOES.find(o=>o.rot===rot); return s?s.dir:SEM_DIR; }
 function diretoriasMM(){ return [...new Set(SUPERVISOES.map(o=>o.dir))]; }
 function porSupervisao(d){
@@ -1177,11 +1184,11 @@ const diretor=SUPERVISOES.find(o=>o.dir===dn).diretor;
 linhas.push({rot:(i+1)+"  DIRETORIA "+dn.toUpperCase()+" — "+diretor,niv:0,cls:"g2",v:soma(o=>o.dir===dn),n:conta(o=>o.dir===dn)});
 SUPERVISOES.filter(s=>s.dir===dn).forEach(s=>linhas.push({rot:s.rot+" — "+(s.sup||s.nome),niv:1,v:soma(o=>o.sup===s.rot),n:conta(o=>o.sup===s.rot)}));
 });
-linhas.push({rot:(diretoriasMM().length+1)+"  PARCERIAS MM (Alfenas, Boa Vista e Base Decápolis)",niv:0,cls:"g2",v:soma(o=>o.sup===PARC),n:conta(o=>o.sup===PARC)}); linhas.push({rot:(diretoriasMM().length+2)+"  SEM SUPERVISÃO INFORMADA (igrejas/obras fora do Relatório Estatístico)",niv:0,cls:"g2",v:soma(o=>o.sup===SEM_SUP),n:conta(o=>o.sup===SEM_SUP)});
+linhas.push({rot:(diretoriasMM().length+1)+"  PARCERIAS MM (Alfenas e Boa Vista)",niv:0,cls:"g2",v:soma(o=>o.sup===PARC),n:conta(o=>o.sup===PARC)}); linhas.push({rot:(diretoriasMM().length+2)+"  SEM SUPERVISÃO INFORMADA (igrejas/obras fora do Relatório Estatístico)",niv:0,cls:"g2",v:soma(o=>o.sup===SEM_SUP),n:conta(o=>o.sup===SEM_SUP)});
 return {ms,igs,linhas};
 }
 /* --- bloco genérico por diretoria / supervisão, com filtro (espelha os quadros das abas da planilha) --- */
-const ADMIN="Administração"; const PESSOA_SUP={"FRANCISCO JOSÉ":["Nordeste 03","Norte e Nordeste"],"MICHAEL LOPES":["Sul","Sul, Sudeste e Centro-Oeste"],"JOÃO CARLOS":["Sudeste","Sul, Sudeste e Centro-Oeste"],"JOSÉ ROBERTO DIRANE":["Oeste","Sul, Sudeste e Centro-Oeste"],"OSMARINA SENA":[ADMIN,ADMIN],"JANDERSON ALMEIDA":["Internacional","Internacional"],"HUDSON FERNANDES":["Nordeste 02","Norte e Nordeste"],"SILVANO VIEIRA":["Nordeste 01","Norte e Nordeste"],"SÉRGIO COSTA":[ADMIN,ADMIN],"ELIAS TORRES":[SEM_SUP,"Sul, Sudeste e Centro-Oeste"],"JOEL SANTOS":[ADMIN,ADMIN],"HELIONILDO MOURA":[SEM_SUP,"Norte e Nordeste"],"JOÃO NUNES":[SEM_SUP,"Internacional"]};
+const ADMIN="Administração"; const PESSOA_SUP={"FRANCISCO JOSÉ":["Nordeste 03","Missão Decápolis"],"MICHAEL LOPES":["Sul","Sul, Sudeste e Centro-Oeste"],"JOÃO CARLOS":["Sudeste","Sul, Sudeste e Centro-Oeste"],"JOSÉ ROBERTO DIRANE":["Oeste","Sul, Sudeste e Centro-Oeste"],"OSMARINA SENA":[ADMIN,ADMIN],"JANDERSON ALMEIDA":["Internacional","Internacional"],"HUDSON FERNANDES":["Nordeste 02","Norte e Nordeste"],"SILVANO VIEIRA":["Nordeste 01","Norte e Nordeste"],"SÉRGIO COSTA":[ADMIN,ADMIN],"ELIAS TORRES":[SEM_SUP,"Sul, Sudeste e Centro-Oeste"],"JOEL SANTOS":[ADMIN,ADMIN],"HELIONILDO MOURA":[SEM_SUP,"Norte e Nordeste"],"JOÃO NUNES":[SEM_SUP,"Internacional"]};
 function supPessoa(p){ return PESSOA_SUP[p]||[SEM_SUP,SEM_DIR]; }
 function itemIgreja(nome,v,m){ const sup=supDe(nome); return {nome,sup,dir:dirDe(sup),v,m}; }
 function blocoSup(w,cfg){
