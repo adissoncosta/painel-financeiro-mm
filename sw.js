@@ -2,7 +2,7 @@
    - Página e dados (dados.bin): busca primeiro na rede (sempre a versão mais nova) e guarda uma cópia para uso offline.
    - Bibliotecas, fontes e ícones: usa a cópia guardada e atualiza em segundo plano.
    - Chamadas à API do GitHub (publicação) nunca passam pelo cache. */
-const VERSAO = "painel-mm-v5";
+const VERSAO = "painel-mm-v6";
 const BASICOS = ["./", "./index.html", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {

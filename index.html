@@ -607,7 +607,7 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 <button class="sec" id="btnRecAssDel" type="button">Remover assinatura</button>
 </div>
 <div id="recLista" class="hide" style="margin-top:12px"></div>
-<div class="note">Um recibo por entrada <b>realizada</b> (Conciliado, Quitado ou Transferido) do banco e do período escolhidos, no modelo da IDPB, em ordem de data e com os recibos do mesmo pagador no mesmo dia em sequência — a mesma ordem da lista. O PDF é sugerido com o nome “Recibos - banco - período”. Mudam em cada recibo apenas: nome e CNPJ/CPF de quem pagou, valor (em número e por extenso), descrição do lançamento e data do recebimento. A imagem da assinatura fica salva <b>somente neste navegador</b> — não é publicada no site nem no link de consulta. No diálogo de impressão, escolha “Salvar como PDF” para gerar o arquivo.</div>
+<div class="note">Um recibo por entrada <b>realizada</b> (Conciliado, Quitado ou Transferido) do banco e do período escolhidos, no modelo da IDPB, em ordem de data e com os recibos do mesmo pagador no mesmo dia em sequência — a mesma ordem da lista. O PDF é sugerido com o nome “Recibos - banco - período”. Mudam em cada recibo apenas: nome e CNPJ/CPF de quem pagou, valor (em número e por extenso), descrição do lançamento e data do recebimento. A assinatura é o <b>padrão de todos os recibos</b>: fica salva neste navegador e segue, criptografada, junto com os dados publicados — não aparece no código público do site. No diálogo de impressão, escolha “Salvar como PDF” para gerar o arquivo.</div>
 </div>
 <div class="card hide" id="cardPrintSup">
 <h3>Imprimir contribuições por diretoria / supervisão</h3>
@@ -2519,6 +2519,8 @@ mm[0].value=1; mm[1].value=12;
 const salvo=localStorage.getItem("mm_saldos");
 SALDOS=res.saldos?Object.assign({},SALDOS_PADRAO,res.saldos):Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
 if(res.saldos) localStorage.setItem("mm_saldos",JSON.stringify(SALDOS));
+if(res.assinatura){ try{ if(!localStorage.getItem("mm_assinatura")) localStorage.setItem("mm_assinatura",res.assinatura); }catch(e){} }
+if(!res.assinatura&&ATUAL&&ATUAL.assinatura) res.assinatura=ATUAL.assinatura;
 ATUAL=res;
 [...new Set(LANC.map(x=>x.conta).filter(Boolean))].forEach(k=>{ if(SALDOS[k]===undefined) SALDOS[k]=0; });
 document.getElementById("info").textContent=res.arquivo+" — aba “"+res.aba+"” — "+NUM(LANC.length)+" lançamentos";
@@ -2616,7 +2618,7 @@ try{ localStorage.setItem("mm_gh_token",tok); }catch(e){}
 let k=chaveLink(); if(!k){ k=b64u.para(crypto.getRandomValues(new Uint8Array(32))); }
 st.textContent="Criptografando e enviando…";
 try{
-const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:SALDOS};
+const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:SALDOS,assinatura:assinaturaRecibo()||undefined};
 const bin=await cifrar(dados,k);
 const api="https://api.github.com/repos/"+REPO+"/contents/"+ARQ_DADOS;
 const h={"Authorization":"Bearer "+tok,"Accept":"application/vnd.github+json"};
@@ -2704,11 +2706,13 @@ return '<section class="recibo">'+
 '<div class="rx-c" style="top:477pt">CNPJ/CPF: '+RECIBO_ORG.cnpj+'</div>'+
 '</section>';
 }
-function assinaturaRecibo(){ try{ return localStorage.getItem("mm_assinatura")||""; }catch(e){ return ""; } }
+/* assinatura padrão: a salva neste navegador ou, se não houver, a que vem junto dos dados publicados (criptografados) */
+function assinaturaRecibo(){ let a=""; try{ a=localStorage.getItem("mm_assinatura")||""; }catch(e){} return a||(ATUAL&&ATUAL.assinatura)||""; }
 function atualizaRecibos(){
 const L=recibosSelecionados(), tot=L.reduce((a,x)=>a+x.valor,0), semDoc=L.filter(x=>!x.doc).length;
 document.getElementById("recResumo").innerHTML="<b>"+NUM(L.length)+"</b> "+(L.length===1?"recibo":"recibos")+" · total de <b>"+BRL(tot)+"</b>"+(semDoc?" · "+NUM(semDoc)+" sem CNPJ/CPF no extrato (o recibo sai sem esse dado)":"");
-const st=document.getElementById("recAssStatus"); st.textContent=assinaturaRecibo()?"✔ assinatura salva neste navegador":"sem assinatura (sai só a linha para assinar)";
+const st=document.getElementById("recAssStatus"); let local=""; try{ local=localStorage.getItem("mm_assinatura")||""; }catch(e){}
+st.textContent=local?"✔ assinatura padrão (salva neste navegador)":(assinaturaRecibo()?"✔ assinatura padrão (dos dados publicados)":"sem assinatura (sai só a linha para assinar)");
 const lst=document.getElementById("recLista"); if(!lst.classList.contains("hide")){ lst.innerHTML="";
 lst.appendChild(tabela(["Data","Pagador","CNPJ/CPF","Descrição","Conta","Valor"],L.map(x=>({cells:[String(x.diaMov||"").padStart(2,"0")+"/"+String(x.mesMov).padStart(2,"0")+"/"+x.anoMov,x.cliente,x.doc||"-",x.desc,x.conta,x.valor]})))); lst.firstChild.classList.add("tab-texto"); lst.firstChild.style.maxHeight="360px"; }
 }
