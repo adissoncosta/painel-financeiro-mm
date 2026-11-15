@@ -507,6 +507,15 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 .recibo .rx-data{top:378pt;left:26pt;width:554pt}
 .recibo .rx-ass{left:50%;transform:translateX(-50%);margin-left:-2.5pt;bottom:calc(842pt - 449pt);height:46pt;width:auto}
 }
+.aviso-pub{position:fixed;left:50%;top:calc(70px + env(safe-area-inset-top));transform:translateX(-50%);z-index:70;display:none;align-items:center;gap:12px;flex-wrap:wrap;max-width:min(680px,calc(100vw - 24px));padding:12px 16px;border-radius:12px;font-size:13.5px;box-shadow:0 10px 30px rgba(16,24,40,.18);background:#fff;border:1px solid #e3e8ef;color:#1f2937}
+.aviso-pub.ok{background:#ecfdf3;border-color:#a6e3bd;color:#14532d}
+.aviso-pub.erro{background:#fef3f2;border-color:#fecdca;color:#912018}
+.aviso-pub.info{background:#eff6ff;border-color:#bfdbfe;color:#1e3a8a}
+.aviso-pub a{font-weight:700;color:inherit;white-space:nowrap}
+.aviso-pub .girando{width:16px;height:16px;border:2px solid #bfdbfe;border-top-color:#1a6fd6;border-radius:50%;animation:gira .8s linear infinite}
+@keyframes gira{to{transform:rotate(360deg)}}
+@media print{.aviso-pub{display:none!important}}
+#pubLinkLinha.hide{display:none!important}
 </style>
 </head>
 <body>
@@ -576,6 +585,7 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 <h3>Publicar para quem tem o link</h3>
 <div id="pubStatus" class="note" style="margin:0 0 10px"></div>
 <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+<div id="pubLinkLinha" class="hide" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;width:100%"><label>Link de consulta atual</label><input type="text" id="pubLinkCola" placeholder="Cole o link …#k=… (só na primeira vez neste navegador)" style="flex:1;min-width:260px" autocomplete="off" spellcheck="false"></div>
 <label>Token do GitHub</label><input type="password" id="pubToken" placeholder="github_pat_..." style="min-width:260px;max-width:100%">
 <button id="btnPubGo">Publicar este extrato</button>
 <button class="sec" id="btnPubCopy">Copiar o link</button>
@@ -2539,7 +2549,7 @@ document.getElementById("btnExcel").onclick=()=>{ baixarExcel().catch(e=>alert("
 function carregar(file){
 const fr=new FileReader();
 fr.onload=e=>{
-try{ const res=lerArquivo(new Uint8Array(e.target.result),file.name); res.salvoEm=new Date().toISOString(); res.compartilhado=false; iniciar(res); salvarDados(res); if(chaveLink()){ document.getElementById("cardPub").classList.remove("hide"); atualizaPub(); } }
+try{ const res=lerArquivo(new Uint8Array(e.target.result),file.name); res.salvoEm=new Date().toISOString(); res.compartilhado=false; iniciar(res); salvarDados(res); if(window.MODO_GESTAO) publicarAuto(); }
 catch(err){
 const d=document.getElementById("erro");
 d.textContent="Não foi possível ler a planilha: "+err.message;
@@ -2607,15 +2617,31 @@ function atualizaPub(){
 const k=chaveLink(), st=document.getElementById("pubStatus"), lk=document.getElementById("pubLink");
 try{ document.getElementById("pubToken").value=localStorage.getItem("mm_gh_token")||""; }catch(e){}
 st.innerHTML=ATUAL&&ATUAL.compartilhado?"O extrato exibido já é o publicado no link. Envie um novo arquivo acima para atualizá-lo.":"O extrato exibido está apenas neste navegador. Clique em <b>Publicar este extrato</b> para que todos com o link o vejam.";
-lk.innerHTML=k?"Link de acesso: <b>"+linkCompleto(k)+"</b>":"O link de acesso será criado na primeira publicação.";
+lk.innerHTML=k?"Link de acesso: <b>"+linkCompleto(k)+"</b>":"";
+document.getElementById("pubLinkLinha").classList.toggle("hide",!!k);
 }
-async function publicar(aba){
-const st=document.getElementById("pubStatus"), tok=document.getElementById("pubToken").value.trim();
+/* ===== publicação automática: ao enviar o extrato na gestão, publica sozinho (token e link ficam guardados neste navegador) ===== */
+function tokenSalvo(){ try{ return localStorage.getItem("mm_gh_token")||""; }catch(e){ return ""; } }
+function chaveDoCampo(){ const t=(document.getElementById("pubLinkCola").value||"").trim(); const m=t.match(/k=([A-Za-z0-9_-]{40,})/)||t.match(/^([A-Za-z0-9_-]{40,})$/); return m?m[1]:""; }
+function avisoPub(html,tipo){ let a=document.getElementById("avisoPub"); if(!a){ a=document.createElement("div"); a.id="avisoPub"; document.body.appendChild(a); }
+a.className="aviso-pub "+(tipo||""); a.innerHTML=html; a.style.display="flex"; clearTimeout(a._t); if(tipo==="ok") a._t=setTimeout(()=>a.style.display="none",12000); }
+function publicarAuto(){
+const card=document.getElementById("cardPub");
+if(!tokenSalvo()||!chaveLink()){ card.classList.remove("hide"); atualizaPub(); card.scrollIntoView({behavior:"smooth",block:"center"});
+avisoPub("<span>Extrato carregado. <b>Configuração única:</b> "+(!chaveLink()?"cole o link de consulta e ":"")+(!tokenSalvo()?"o token do GitHub ":"")+"no quadro “Publicar” e clique em <b>Publicar este extrato</b>. Nas próximas vezes a publicação será automática.</span>","info"); return; }
+avisoPub("<span class='girando'></span><span>Publicando o extrato no site…</span>","andamento");
+publicar(null,{auto:true});
+}
+async function publicar(aba,opts){
+opts=opts||{};
+const st=document.getElementById("pubStatus"), tok=document.getElementById("pubToken").value.trim()||tokenSalvo();
 if(!ATUAL||!ATUAL.lanc) return alert("Carregue um extrato antes de publicar.");
 if(!tok) return alert("Informe o token do GitHub.");
 if(!window.crypto||!crypto.subtle) return alert("Este navegador só permite a criptografia em páginas https. Abra o painel pelo endereço do GitHub Pages (https://...).");
 try{ localStorage.setItem("mm_gh_token",tok); }catch(e){}
-let k=chaveLink(); if(!k){ k=b64u.para(crypto.getRandomValues(new Uint8Array(32))); }
+let k=chaveLink()||chaveDoCampo();
+if(!k){ if(opts.auto) return; if(!confirm("Nenhum link de consulta foi informado neste navegador. Será criado um link NOVO e o link antigo deixará de funcionar.\n\nSe você já tem um link de consulta, clique em Cancelar e cole-o no campo “Link de consulta atual”.")){ if(aba&&!aba.closed) aba.close(); return; }
+k=b64u.para(crypto.getRandomValues(new Uint8Array(32))); }
 st.textContent="Criptografando e enviando…";
 try{
 const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:SALDOS,assinatura:assinaturaRecibo()||undefined};
@@ -2628,13 +2654,16 @@ const p=await fetch(api,{method:"PUT",headers:h,body:JSON.stringify({message:"At
 if(!p.ok){ const t=await p.text(); throw new Error("GitHub respondeu "+p.status+": "+t.slice(0,200)); }
 try{ localStorage.setItem("mm_link_key",k); }catch(e){}
 ATUAL=Object.assign({},ATUAL,dados,{compartilhado:true}); salvarDados(ATUAL); mostraSalvo(ATUAL); atualizaPub();
-st.innerHTML="<b style='color:var(--verde)'>Publicado!</b> A página de consulta foi aberta em uma nova guia. As demais pessoas verão este extrato pelo link abaixo (a atualização pode levar 1–2 minutos para aparecer para todos).";
-if(aba&&!aba.closed){ aba.location.href=linkCompleto(k); } else { window.open(linkCompleto(k),"_blank"); }
-}catch(e){ if(aba&&!aba.closed) aba.close(); console.error(e); st.innerHTML="<b style='color:var(--vermelho)'>Não foi possível publicar:</b> "+String(e.message).replace(/</g,"&lt;"); }
+st.innerHTML="<b style='color:var(--verde)'>Publicado!</b> As demais pessoas verão este extrato pelo link abaixo (a atualização pode levar 1–2 minutos para aparecer para todos).";
+avisoPub("<span>✔ <b>Extrato publicado.</b> O site estará atualizado para todos em 1–2 minutos.</span><a href='"+linkCompleto(k)+"' target='_blank' rel='noopener'>Abrir página de consulta</a>","ok");
+document.getElementById("cardPub").classList.add("hide");
+if(aba&&!aba.closed){ aba.location.href=linkCompleto(k); } else if(!opts.auto){ window.open(linkCompleto(k),"_blank"); }
+}catch(e){ if(aba&&!aba.closed) aba.close(); console.error(e); const msg=String(e.message).replace(/</g,"&lt;"); st.innerHTML="<b style='color:var(--vermelho)'>Não foi possível publicar:</b> "+msg;
+document.getElementById("cardPub").classList.remove("hide"); avisoPub("<span><b>Não foi possível publicar:</b> "+msg+"</span>","erro"); }
 }
 document.getElementById("btnPubGo").addEventListener("click",()=>{
 /* a guia é aberta já no clique (senão o navegador bloqueia o pop-up) e recebe o endereço quando a publicação termina */
-let aba=null; if(ATUAL&&document.getElementById("pubToken").value.trim()){ aba=window.open("about:blank","_blank"); }
+let aba=null; if(ATUAL&&(document.getElementById("pubToken").value.trim()||tokenSalvo())&&(chaveLink()||chaveDoCampo())){ aba=window.open("about:blank","_blank"); }
 publicar(aba);
 });
 document.getElementById("btnPubCopy").addEventListener("click",()=>{ const k=chaveLink(); if(!k) return alert("Publique primeiro para criar o link."); navigator.clipboard.writeText(linkCompleto(k)).then(()=>alert("Link copiado."),()=>prompt("Copie o link:",linkCompleto(k))); });
