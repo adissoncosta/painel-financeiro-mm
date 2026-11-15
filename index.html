@@ -523,7 +523,8 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 .at-prazo{background:#f1f5f9;color:#64748b}
 .tab-atraso td:nth-child(-n+2),.tab-atraso th:nth-child(-n+2){text-align:left}
 .tab-atraso td.num{text-align:center}
-.tab-atraso td:nth-last-child(-n+3){text-align:right}
+.tab-atraso td:nth-last-child(-n+2){text-align:right}
+.at-prazo{background:transparent}
 @media print{.at{border:1px solid #999}}
 .tab-esq td,.tab-esq th{text-align:left!important}
 </style>
@@ -1320,7 +1321,7 @@ if(rp.T.nao_class.n) p.push(NUM(rp.T.nao_class.n)+" transferência(s) sem classi
 const adv=adiantamentos(c), aberto=adv.lista.filter(o=>Math.abs(o.saldo)>0.01);
 if(aberto.length) p.push("Adiantamentos de viagem aguardando prestação de contas (saldo na conta 25): "+aberto.map(o=>o.p+" "+BRL(o.saldo)).join("; ")+" — total de "+BRL(adv.saldo)+". As despesas da viagem devem ser lançadas na conta 25 e o saldo não utilizado devolvido.");
 }
-{ const at=atrasos(c); if(at.igPend) p.push(NUM(at.igPend)+(at.igPend===1?" igreja está":" igrejas estão")+" com relatório de contribuição em atraso ("+NUM(at.pend)+" "+(at.pend===1?"competência":"competências")+" com prazo vencido sem entrega)"+(at.nunca.length?", e "+NUM(at.nunca.length)+" não entregaram nenhum relatório no ano":"")+" — veja a aba Contribuições."); }
+{ const at=atrasos(c); if(at.igPend) p.push(NUM(at.igPend)+(at.igPend===1?" igreja está":" igrejas estão")+" com relatório de contribuição pendente ("+NUM(at.pend)+" "+(at.pend===1?"competência vencida":"competências vencidas")+" sem entrega)"+(at.nunca.length?", e "+NUM(at.nunca.length)+" não entregaram nenhum relatório no ano":"")+" — veja a aba Contribuições."); }
 const paradas=conta.filter(o=>o.n===0&&o.ini!==0).map(o=>o.conta);
 if(paradas.length) p.push("Contas com saldo anterior e sem nenhum lançamento no período: "+paradas.join("; ")+".");
 const vt=base(c,false).filter(x=>semAcento(x.cat).indexOf("VALORES DE TERCEIROS")>-1);
@@ -1664,8 +1665,8 @@ wf.appendChild(card("Recebimentos x pagamentos por mês (R$)",svgBarras([].conca
 wf.appendChild(card("Saldo final de caixa por mês (R$)",svgLinha(ms.map(m=>({l:MESES[m-1],v:f.saldoFim[m]})),{h:360})));
 return wf;
 }
-/* ===== Relatórios de contribuição em atraso =====
-   Regra: o relatório (contribuição) da competência M deve ser entregue até o último dia do mês M+1.
+/* ===== Relatórios de contribuição pendentes =====
+   Regra: o relatório (contribuição) da competência M deve ser entregue até o dia 10 do mês M+1.
    Considera entregue quando há lançamento realizado de Contribuição 7,5%/4,5% ou Dízimo secular com competência M. */
 const CATS_RELATORIO=[CAT.c75,CAT.c45,CAT.dp90,CAT.dsec].map(semAcento);
 let ATRASO_SO_PEND=true;
@@ -1678,7 +1679,7 @@ return null;
 function atrasos(c){
 const hoje=new Date(), hojeN=hoje.getFullYear()*10000+(hoje.getMonth()+1)*100+hoje.getDate();
 const ms=periodoMeses(c).filter(m=>c.ano*100+m<=hoje.getFullYear()*100+hoje.getMonth()+1); /* competências até o mês atual */
-const prazo=m=>{ const a=m===12?c.ano+1:c.ano, mm=m===12?1:m+1; return a*10000+mm*100+new Date(a,mm,0).getDate(); };
+const DIA_VENC=10; const prazo=m=>{ const a=m===12?c.ano+1:c.ano, mm=m===12?1:m+1; return a*10000+mm*100+DIA_VENC; };
 const lista=[...new Set(Object.values(IGREJA_SUP).flat())].filter(ig=>!(c.cons&&CONSOLIDA[semAcento(ig)])); /* com a consolidação ligada, Catolé/Barbalha entram em Juazeiro */
 const ent={}; /* igreja -> mês -> {data, valor, aberto} */
 LANC.forEach(x=>{
@@ -1693,7 +1694,7 @@ const nunca=lista.filter(ig=>!ent[ig]||!Object.values(ent[ig]).some(o=>o.data!==
 const linhas=lista.filter(ig=>nunca.indexOf(ig)<0).map(ig=>{
 const st={}; let p=0,t=0,ult=0;
 ms.forEach(m=>{ const o=(ent[ig]||{})[m], pz=prazo(m), venceu=hojeN>pz;
-if(o&&o.data!==null){ ult=Math.max(ult,m); if(o.data<=pz){ st[m]={s:"ok",o,pz}; if(venceu||true){ emDia++; devidos++; } } else { st[m]={s:"tarde",o,pz}; t++; tarde++; devidos++; } }
+if(o&&o.data!==null){ ult=Math.max(ult,m); st[m]={s:"ok",o,pz,tarde:o.data>pz}; emDia++; devidos++; if(o.data>pz){ t++; tarde++; } }
 else if(venceu){ st[m]={s:"pend",o,pz}; p++; pend++; devidos++; }
 else st[m]={s:"prazo",o,pz};
 });
@@ -1705,37 +1706,34 @@ function fmtDataN(n){ return String(n%100).padStart(2,"0")+"/"+String(Math.floor
 function cardAtrasos(c){
 const d=atrasos(c), w=el("div");
 const k=el("div","kpis");
-k.append(kpi("Igrejas com relatório em atraso",NUM(d.igPend),d.igPend?"neg":"pos","Igrejas da lista de supervisões com pelo menos um relatório cujo prazo (último dia do mês seguinte à competência) já venceu sem lançamento realizado."),
-kpi("Relatórios em atraso (pendentes)",NUM(d.pend),d.pend?"neg":"pos","Competências com prazo vencido e sem contribuição realizada."),
-kpi("Entregues com atraso",NUM(d.tarde),d.tarde?"alt":null,"Competências pagas depois do último dia do mês seguinte."),
-kpi("Pontualidade",PCT(d.emDia/(d.devidos||1)),null,"Relatórios entregues no prazo ÷ relatórios com prazo vencido ou já entregues."),
+k.append(kpi("Igrejas com relatório pendente",NUM(d.igPend),d.igPend?"neg":"pos","Igrejas da lista de supervisões com pelo menos um relatório não entregue cujo vencimento (dia 10 do mês seguinte à competência) já passou."),
+kpi("Relatórios pendentes",NUM(d.pend),d.pend?"neg":"pos","Competências com vencimento já passado e sem contribuição realizada."),
+kpi("Relatórios entregues",NUM(d.emDia),"pos","Competências com contribuição realizada no ano (passe o cursor nas marcas para ver se a entrega foi no prazo)."),
 kpi("Sem nenhum relatório no ano",NUM(d.nunca.length),d.nunca.length?"alt":null,"Igrejas da lista sem nenhuma contribuição realizada no ano — confira se devem contribuir (ex.: obras sustentadas pelo MM)."));
 w.appendChild(k);
-const box=el("div","card"); box.appendChild(el("h3",null,"Relatórios de contribuição — entregas e atrasos"));
+const box=el("div","card"); box.appendChild(el("h3",null,"Relatórios de contribuição — entregues e pendentes"));
 const chips=el("div","chips naoimprimir");
-[["Só igrejas com atraso",true],["Todas as igrejas",false]].forEach(([r,v])=>{ const b=el("button",ATRASO_SO_PEND===v?"chip on":"chip",r); b.type="button"; b.onclick=()=>{ ATRASO_SO_PEND=v; const y=scrollY; render(); scrollTo(0,y); }; chips.appendChild(b); });
+[["Só igrejas com pendência",true],["Todas as igrejas",false]].forEach(([r,v])=>{ const b=el("button",ATRASO_SO_PEND===v?"chip on":"chip",r); b.type="button"; b.onclick=()=>{ ATRASO_SO_PEND=v; const y=scrollY; render(); scrollTo(0,y); }; chips.appendChild(b); });
 box.appendChild(chips);
-const leg=el("div","note"); leg.innerHTML="<span class='at at-ok'>✔</span> entregue no prazo &nbsp; <span class='at at-tarde'>!</span> entregue com atraso &nbsp; <span class='at at-pend'>✖</span> em atraso (não entregue) &nbsp; <span class='at at-prazo'>…</span> ainda no prazo &nbsp;·&nbsp; Prazo: último dia do mês seguinte à competência (ex.: setembro até 31/10). Passe o mouse ou toque na marca para ver datas e valores.";
+const leg=el("div","note"); leg.innerHTML="<span class='at at-ok'>✔</span> entregue &nbsp; <span class='at at-pend'>✖</span> pendente &nbsp;·&nbsp; Vencimento: dia 10 do mês seguinte à competência (ex.: setembro vence em 10/10). Meses ainda não vencidos ficam em branco. Passe o cursor (ou toque) na marca para ver a data da entrega, o valor e se foi entregue com atraso.";
 box.appendChild(leg);
-let ls=d.linhas.slice(); if(ATRASO_SO_PEND) ls=ls.filter(l=>l.p>0||l.t>0);
-ls.sort((a,b)=>b.p-a.p||b.t-a.t||a.ig.localeCompare(b.ig,"pt-BR"));
+let ls=d.linhas.slice(); if(ATRASO_SO_PEND) ls=ls.filter(l=>l.p>0);
+ls.sort((a,b)=>b.p-a.p||a.ig.localeCompare(b.ig,"pt-BR"));
 const wrap=el("div","scroll"), t=el("table","tab-atraso"), th=el("tr");
-["Igreja","Supervisão"].concat(d.ms.map(m=>MESES[m-1]+"/"+String(c.ano).slice(2))).concat(["Em atraso","Entregues c/ atraso","Último relatório"]).forEach(h=>th.appendChild(el("th",null,h)));
+["Igreja","Supervisão"].concat(d.ms.map(m=>MESES[m-1]+"/"+String(c.ano).slice(2))).concat(["Pendentes","Último relatório"]).forEach(h=>th.appendChild(el("th",null,h)));
 const thead=el("thead"); thead.appendChild(th); t.appendChild(thead); const tb=el("tbody");
 ls.forEach(l=>{ const tr=el("tr"); tr.appendChild(el("td",null,l.ig)); tr.appendChild(el("td",null,l.sup+supNome(l.sup)));
-d.ms.forEach(m=>{ const s=l.st[m], td=el("td","num"); const sp=el("span","at at-"+s.s,{ok:"✔",tarde:"!",pend:"✖",prazo:"…"}[s.s]);
+d.ms.forEach(m=>{ const s=l.st[m], td=el("td","num"); const sp=el("span","at at-"+s.s,{ok:"✔",pend:"✖",prazo:""}[s.s]);
 const comp=MESES_LONGO[m-1]+"/"+c.ano;
-sp.title=s.s==="ok"?comp+": entregue em "+fmtDataN(s.o.data)+" ("+BRL(s.o.valor)+"), prazo "+fmtDataN(s.pz):
-s.s==="tarde"?comp+": entregue com atraso em "+fmtDataN(s.o.data)+" ("+BRL(s.o.valor)+"), prazo era "+fmtDataN(s.pz):
-s.s==="pend"?comp+": NÃO entregue — prazo venceu em "+fmtDataN(s.pz)+(s.o&&s.o.aberto?" (há "+BRL(s.o.aberto)+" lançado em aberto)":""):
-comp+": prazo até "+fmtDataN(s.pz);
+sp.title=s.s==="ok"?comp+": entregue em "+fmtDataN(s.o.data)+" ("+BRL(s.o.valor)+")"+(s.tarde?" — ENTREGUE COM ATRASO (venceu em "+fmtDataN(s.pz)+")":" — no prazo (vencimento "+fmtDataN(s.pz)+")"):
+s.s==="pend"?comp+": PENDENTE — venceu em "+fmtDataN(s.pz)+(s.o&&s.o.aberto?" (há "+BRL(s.o.aberto)+" lançado em aberto)":""):
+comp+": ainda não venceu — vencimento "+fmtDataN(s.pz);
 td.appendChild(sp); tr.appendChild(td); });
 const tp=el("td","num"+(l.p?" neg":""),l.p?NUM(l.p):"-"); tr.appendChild(tp);
-tr.appendChild(el("td","num",l.t?NUM(l.t):"-"));
 tr.appendChild(el("td","num",l.ult?MESES[l.ult-1]+"/"+String(c.ano).slice(2):"nenhum")); tb.appendChild(tr); });
-if(!ls.length){ const tr=el("tr"), td=el("td",null,"Nenhuma igreja com relatório em atraso no período."); td.colSpan=d.ms.length+5; tr.appendChild(td); tb.appendChild(tr); }
+if(!ls.length){ const tr=el("tr"), td=el("td",null,"Nenhuma igreja com relatório pendente no período."); td.colSpan=d.ms.length+4; tr.appendChild(td); tb.appendChild(tr); }
 t.appendChild(tb); wrap.appendChild(t); box.appendChild(wrap);
-const n=el("div","note"); n.innerHTML="Considera as igrejas da lista de supervisões (aba Diretorias MM) e as competências de "+MESES_LONGO[c.m1-1]+" até o mês atual dentro do período escolhido. Entrega = lançamento <b>realizado</b> (Conciliado/Quitado) em Contribuição Ministerial 7,5% ou 4,5%, Dízimo Pastoral Secular 90% ou Dízimo Secular, com a <b>data de competência</b> do mês; a data de entrega é a data de movimento do primeiro desses lançamentos. Igrejas que não contribuem regularmente (ex.: internacionais) também aparecem se não houver lançamento.";
+const n=el("div","note"); n.innerHTML="Considera as igrejas da lista de supervisões (aba Diretorias MM) e as competências de "+MESES_LONGO[c.m1-1]+" até o mês atual dentro do período escolhido. Entrega = lançamento <b>realizado</b> (Conciliado/Quitado) em Contribuição Ministerial 7,5% ou 4,5%, Dízimo Pastoral Secular 90% ou Dízimo Secular, com a <b>data de competência</b> do mês; a data de entrega é a data de movimento do primeiro desses lançamentos. Vencimento: dia 10 do mês seguinte à competência.";
 box.appendChild(n); w.appendChild(box);
 if(d.nunca.length){ const b2=el("div","card"); b2.appendChild(el("h3",null,"Igrejas sem nenhum relatório de contribuição em "+c.ano));
 b2.appendChild(tabela(["Igreja","Supervisão"],d.nunca.map(ig=>{ const sp=supDe(ig); return {cells:[ig,sp+supNome(sp)]}; })));
