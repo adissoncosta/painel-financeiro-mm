@@ -527,6 +527,9 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 .at-prazo{background:transparent}
 @media print{.at{border:1px solid #999}}
 .tab-esq td,.tab-esq th{text-align:left!important}
+@media screen{.grid3.grid3-2{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)}}
+@media screen and (max-width:1250px){.grid3.grid3-2>.contasfin{grid-column:auto}}
+@media screen and (max-width:900px){.grid3.grid3-2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1417,7 +1420,7 @@ col.appendChild(g); ar.appendChild(col);
 });
 w.appendChild(ar);
 w.appendChild(el("div","note ar-nota","Lançamentos com situação Atrasado ou Em aberto, comparados com a data de hoje ("+new Date().toLocaleDateString("pt-BR")+"), independentemente do período escolhido. Transferências não entram."));
-const g3=el("div","grid3");
+const g3=el("div","grid3 grid3-2");
 // contas financeiras
 const cf=el("div","card contasfin"); cf.appendChild(el("h3",null,"Contas financeiras"));
 const tot=ct.reduce((a,o)=>a+o.fim,0);
@@ -1431,7 +1434,6 @@ it.querySelector(".cf-val").textContent=BRL(o.fim); lst.appendChild(it); });
 cf.appendChild(lst); g3.appendChild(cf);
 const rot=f.ms.map(m=>MESES[m-1]);
 g3.appendChild(card("Fluxo de caixa mensal",svgCombo(rot,f.ms.map(m=>f.rec[m]),f.ms.map(m=>f.pag[m]),f.ms.map(m=>f.saldoFim[m]),{w:620,h:430})));
-g3.appendChild(card("Recebimentos por mês",svgBarras(f.ms.map(m=>({l:MESES[m-1],v:f.rec[m],c:"#22a447"})),{w:620,h:430,semValores:true})));
 w.appendChild(g3);
 return w;
 }
@@ -1514,7 +1516,7 @@ L.push({cls:"tot",cells:["Total de pagamentos"].concat(ms.map(m=>d.P.tot[m])).co
 d.P.rows.forEach(r=>L.push({cls:r.cls||null,ind:r.niv-1,cells:[r.rot].concat(ms.map(m=>r.v[m])).concat([S(r.v)])}));
 L.push({cls:"sub",cells:["Geração de caixa do período"].concat(ms.map(m=>d.ger[m])).concat([ger])});
 L.push({cls:"tot",cells:["Total de transferências"].concat(ms.map(m=>d.tIn[m]+d.tOut[m])).concat([rep])});
-L.push({ind:1,cells:["Transferência de entrada"].concat(ms.map(m=>d.tIn[m])).concat([S(d.tIn)])});
+L.push({ind:1,cells:["REPASSE MM PARA MISSÃO DECÁPOLIS"].concat(ms.map(m=>d.tIn[m])).concat([S(d.tIn)])});
 if(Math.abs(S(d.tOut))>0.004) L.push({ind:1,cells:["Transferência de saída"].concat(ms.map(m=>d.tOut[m])).concat([S(d.tOut)])});
 L.push({cls:"sal",cells:["Saldo final de caixa"].concat(ms.map(m=>d.saldoFim[m])).concat([fim])});
 w.appendChild(card("Fluxo de caixa — Missão Decápolis",tabela(["Categorias"].concat(colsMes).concat(["Total"]),L),
@@ -1563,7 +1565,7 @@ return w;
 function viewPainel(c){
 const v=el("div"), rm=resumoMensal(c), f=fluxo(c), dm=demonstrativo(c), of=ofertas(c), ct=porConta(c);
 v.appendChild(visaoTopo(c,f,ct));
-v.appendChild(el("h4","secao","Indicadores do período"));
+v.appendChild(el("h4","secao","Indicadores principais do período"));
 const T=(a,k)=>a.reduce((x,o)=>x+o[k],0);
 const ultimo=f.ms[f.ms.length-1];
 const k=el("div","kpis");
@@ -1574,14 +1576,9 @@ const KP=[
 ["Receitas operacionais",T(rm,"recOp"),null,"Soma dos lançamentos do tipo <b>Receita</b> com data de movimento entre "+per+", exceto as categorias de <b>Transferência</b> entre contas."],
 ["Despesas operacionais",T(rm,"despOp"),null,"Soma (em valor absoluto) dos lançamentos do tipo <b>Despesa</b> com data de movimento entre "+per+", exceto as categorias de <b>Transferência</b> entre contas."],
 ["Resultado operacional",T(rm,"recOp")-T(rm,"despOp"),T(rm,"recOp")-T(rm,"despOp")<0?"neg":"pos","Receitas operacionais − Despesas operacionais = "+BRL(T(rm,"recOp"))+" − "+BRL(T(rm,"despOp"))+"."],
-["Transferências líquidas",T(rm,"tIn")-T(rm,"tOut"),"alt","Transferências recebidas ("+BRL(T(rm,"tIn"))+") − transferências enviadas ("+BRL(T(rm,"tOut"))+"), nas categorias com “Transferência” no nome. Fica perto de zero quando as duas contas envolvidas estão no extrato."],
 ["Saldo final das contas",ct.reduce((a,o)=>a+o.fim,0),null,"Para cada conta: saldo anterior da conta + entradas − saídas do período (data de movimento). O valor é a soma de todas as contas (aba Contas e saldos)."],
-["Recebimentos (fluxo)",f.ms.reduce((a,m)=>a+f.rec[m],0),null,"Soma das linhas de <b>recebimentos</b> do plano do Fluxo de caixa, por data de movimento, entre "+per+"."],
-["Pagamentos (fluxo)",f.ms.reduce((a,m)=>a+f.pag[m],0),"neg","Soma das linhas de <b>pagamentos</b> do plano do Fluxo de caixa (valores negativos), por data de movimento, entre "+per+"."],
-["Saldo final de caixa",f.saldoFim[ultimo],null,"Saldo anterior + recebimentos + pagamentos (+ ajustes) acumulados mês a mês até "+MESES_LONGO[ultimo-1]+"/"+c.ano+" (aba Fluxo de caixa)."],
 ["Contribuições de igrejas",dm.ms.reduce((a,m)=>a+dm.total[m],0),null,"Total do Demonstrativo de contribuições: soma das categorias "+CATS_DEMO.join(", ")+" por <b>data de competência</b>, das "+dm.nIgrejas+" igrejas com lançamento em Contribuição 7,5% e/ou Dízimo Pastoral 90%."],
 ["Ofertas missionárias",of.total,null,"Soma das receitas nas categorias "+CATS_OFERTA.join(", ")+" por <b>data de competência</b> (aba Ofertas missionárias)."],
-["Lançamentos no período",NUM(base(c,false).length),null,"Quantidade de linhas do extrato com data de movimento entre "+per+" ("+crit+")."]
 ];
 KP.forEach(x=>k.appendChild(kpi(x[0],x[1],x[2],x[3])));
 v.appendChild(k);
@@ -1592,22 +1589,6 @@ tm.appendChild(tbm); mem.appendChild(tm);
 const cMem=card("Memória de cálculo dos indicadores",mem); cMem.classList.add("soimp"); v.appendChild(cMem);
 const ps=el("ul","pts"); pontos(c).forEach(t=>ps.appendChild(el("li",null,t)));
 const cPts=card("Pontos de atenção para a auditoria",ps); cPts.classList.add("naoimprimir"); v.appendChild(cPts);
-const g=el("div","grid2");
-g.appendChild(card("Receitas x Despesas operacionais por mês",
-svgBarras([].concat(...rm.map(o=>[{l:MESES[o.m-1],v:o.recOp,c:"#22427a"},{l:"",v:-o.despOp,c:"#b42318"}])),{h:300}),"Por mês (data de movimento): barras azuis = receitas operacionais; barras vermelhas = despesas operacionais (exibidas como negativas). Transferências entre contas não entram."));
-g.appendChild(card("Evolução do saldo acumulado",
-svgLinha(rm.map(o=>({l:MESES[o.m-1],v:o.saldo})),{h:300}),"Saldo anterior ("+BRL(saldoInicialTotal(c))+") + resultado de cada mês (todas as receitas − todas as despesas, inclusive transferências), acumulado mês a mês."));
-v.appendChild(g);
-const g2=el("div","grid2");
-const despCat=agregaCategoria(c,"Despesa").filter(o=>semAcento(o.k).indexOf("TRANSFERENCIA")<0); const totDesp=despCat.reduce((a,o)=>a+o.v,0);
-g2.appendChild(card("10 maiores categorias de despesa — valor e % do total de despesas",svgBarras(despCat.slice(0,10).reverse()
-.map(o=>({l:o.k,v:o.v,c:"#b42318",extra:PCT(o.v/(totDesp||1))})),{horizontal:true}),"Valor = soma dos lançamentos de cada categoria no período (data de movimento). Percentual calculado sobre o total de despesas do período ("+BRL(totDesp)+"), excluídas as transferências entre contas."));
-const recCat=agregaCategoria(c,"Receita").filter(o=>semAcento(o.k).indexOf("TRANSFERENCIA")<0); const totRec=recCat.reduce((a,o)=>a+o.v,0);
-g2.appendChild(card("10 maiores categorias de receita — valor e % do total de receitas",svgBarras(recCat.slice(0,10).reverse()
-.map(o=>({l:o.k,v:o.v,c:"#22427a",extra:PCT(o.v/(totRec||1))})),{horizontal:true}),"Valor = soma dos lançamentos de cada categoria no período (data de movimento). Percentual calculado sobre o total de receitas do período ("+BRL(totRec)+"), excluídas as transferências entre contas."));
-v.appendChild(g2);
-const dmS=porSupervisao(dm);
-blocoSup(v,{titulo:"Contribuições das igrejas",itens:dmS.igs.map(o=>({nome:o.ig,sup:o.sup,dir:o.dir,v:[o.t],m:o.v})),cols:["Contribuições"],cores:["#22427a"],ms:dm.ms,ano:c.ano,nota:"Valor de cada igreja = total recebido no Demonstrativo de contribuições (data de competência). A igreja é ligada à supervisão e à diretoria pela lista da aba Diretorias MM; a linha de cada supervisão soma as suas igrejas e a linha da diretoria soma as suas supervisões. Nº = quantidade de igrejas com valor maior que zero."});
 return v;
 }
 function viewResumo(c){
