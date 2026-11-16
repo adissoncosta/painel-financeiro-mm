@@ -2170,7 +2170,7 @@ const invTot=linhas.reduce((a,o)=>a+o.inv,0), retTot=linhas.reduce((a,o)=>a+o.re
 return {linhas,invTot,retTot,despTotal,retTotalIgrejas,naoAtribuido:despTotal-invTot};
 }
 /* ===== Custo x despesa por igreja: identifica a igreja pela categoria e, se não houver, pela descrição ===== */
-let IGREJA_SEL="";
+let IGREJA_SEL="", CI_SUP="todas";
 let _rxIgreja=null;
 function rxIgreja(){ if(!_rxIgreja) _rxIgreja=ALIAS_DESPESA.map(o=>{ const k=semAcento(o[0]), prefixo=["PORTUG","TIANGU","GOIAN"].indexOf(k)>-1; /* chaves que são início de palavra (PORTUGAL/PORTUGUAL, TIANGUÁ, GOIÂNIA/GOIANIRA) */
 return [new RegExp("(^|[^A-Z])"+k.replace(/[.*+?^${}()|[\]\\\/]/g,"\\$&")+(prefixo?"":"([^A-Z]|$)")),o[1]]; }); return _rxIgreja; }
@@ -2239,11 +2239,30 @@ w.appendChild(card("Recebido x gasto por supervisão (R$)",svgBarras([].concat(.
 "Barras verdes = total recebido das igrejas da supervisão; barras vermelhas = total gasto com elas."));
 /* --- por igreja --- */
 const ord=d.lista.slice().sort((a,b)=>b.tot-a.tot||b.rec-a.rec);
-const L=ord.map(o=>({cells:[o.ig,o.sup+supNome(o.sup)].concat(vals([o])).concat([NUM(o.n)])}));
-L.push({cls:"tot",cells:["TOTAL DAS IGREJAS CONSIDERADAS",""].concat(vals(d.lista)).concat([NUM(S(d.lista,"n"))])});
-const tbI=tabela(["Igreja","Supervisão"].concat(hdr).concat(["Nº lanç."]),L);
-tbI.firstChild.classList.add("tab-sup2");
-w.appendChild(card("Custo x despesa por igreja",tbI,
+/* filtro por diretoria / supervisão */
+const filtroCI=el("div","naoimprimir"); filtroCI.style.cssText="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px";
+const selCI=el("select"); selCI.style.minWidth="300px";
+const opCI=[["todas","Todas as supervisões"]];
+diretoriasMM().forEach(dn=>{ if(!d.lista.some(o=>o.dir===dn)) return; const s0=SUPERVISOES.find(o=>o.dir===dn); opCI.push(["dir:"+dn,"Diretoria "+dn+" — "+s0.diretor]);
+SUPERVISOES.filter(x=>x.dir===dn&&d.lista.some(o=>o.sup===x.rot)).forEach(x=>opCI.push(["sup:"+x.rot,"     "+x.rot+" — "+(x.sup||x.nome)])); });
+if(d.lista.some(o=>diretoriasMM().indexOf(o.dir)<0)) opCI.push(["sem","Sem supervisão informada"]);
+opCI.forEach(([v,r])=>{ const op=el("option",null,r.replace(/^ +/,"\u00a0\u00a0\u00a0\u00a0")); op.value=v; selCI.appendChild(op); });
+if(!opCI.some(o=>o[0]===CI_SUP)) CI_SUP="todas"; selCI.value=CI_SUP;
+filtroCI.appendChild(el("label",null,"Diretoria / supervisão")); filtroCI.appendChild(selCI);
+const resumoCI=el("span","note"); resumoCI.style.margin="0"; filtroCI.appendChild(resumoCI);
+const caixaCI=el("div");
+const desenhaCI=()=>{ caixaCI.innerHTML="";
+const f=CI_SUP==="todas"?(()=>true):CI_SUP==="sem"?(o=>diretoriasMM().indexOf(o.dir)<0):CI_SUP.indexOf("dir:")===0?(o=>o.dir===CI_SUP.slice(4)):(o=>o.sup===CI_SUP.slice(4));
+const sel=ord.filter(f);
+const L=sel.map(o=>({cells:[o.ig,o.sup+supNome(o.sup)].concat(vals([o])).concat([NUM(o.n)])}));
+L.push({cls:"tot",cells:[CI_SUP==="todas"?"TOTAL DAS IGREJAS CONSIDERADAS":"TOTAL DO FILTRO",""].concat(vals(sel)).concat([NUM(S(sel,"n"))])});
+const tbI=tabela(["Igreja","Supervisão"].concat(hdr).concat(["Nº lanç."]),L); tbI.firstChild.classList.add("tab-sup2"); caixaCI.appendChild(tbI);
+resumoCI.textContent=NUM(sel.length)+(sel.length===1?" igreja":" igrejas")+" · recebido "+BRL(S(sel,"rec"))+" · gasto "+BRL(S(sel,"tot"));
+};
+selCI.onchange=()=>{ CI_SUP=selCI.value; desenhaCI(); };
+desenhaCI();
+const corpoCI=el("div"); corpoCI.appendChild(filtroCI); corpoCI.appendChild(caixaCI);
+w.appendChild(card("Custo x despesa por igreja",corpoCI,
 "Entram as igrejas que mandam <b>contribuições</b> ao MM (7,5%, 4,5%, Dízimo Pastoral 90% ou Dízimo Secular). A igreja da despesa é identificada pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b>. <b>Custos da missão</b> = grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local. Viagens de supervisores, diretores e missionários não entram."));
 const g=el("div","grid2");
 const top=ord.filter(o=>o.tot>0.005).slice(0,15).reverse();
