@@ -1854,21 +1854,30 @@ const d=semAcento(x.desc);
 for(const p of PESSOAS_VIAGEM){ if(d.indexOf(p[0])>-1) return p[1]; }
 return "(sem nome na descrição)";
 };
+/* todas as pessoas citadas na descrição (sem repetir): o custo da viagem é rateado igualmente entre elas */
+const pessoasViagem = x => {
+const g=grupoViagem(x);
+if(g==="Decápolis") return ["FRANCISCO JOSÉ"];
+const d=semAcento(x.desc), ps=[];
+for(const p of PESSOAS_VIAGEM){ if(d.indexOf(semAcento(p[0]))>-1&&ps.indexOf(p[1])<0) ps.push(p[1]); }
+return ps.length?ps:["(sem nome na descrição)"];
+};
 const tipoViagem = x => { const d=semAcento(x.desc); for(const p of TIPOS_VIAGEM){ if(d.indexOf(p[0])>-1) return p[1]; } return "Outros"; };
 function viagens(c){
 const ms=periodoMeses(c), L=base(c,false).filter(x=>grupoViagem(x));
-const G={},P={},T={},M={};
+const G={},P={},T={},M={}, RATEIOS=[];
 const zera=o=>{ ms.forEach(m=>{ if(o.v[m]===undefined) o.v[m]=0; }); return o; };
 L.forEach(x=>{
-const g=grupoViagem(x), p=pessoaViagem(x), t=tipoViagem(x), val=-x.valor;
+const g=grupoViagem(x), ps=pessoasViagem(x), t=tipoViagem(x), val=-x.valor, parte=val/ps.length;
 const og=zera(G[g]=G[g]||{v:{},tot:0,n:0}); og.v[x.mesMov]+=val; og.tot+=val; og.n++;
-const kp=g+"||"+p; const op=zera(P[kp]=P[kp]||{g,p,v:{},tot:0,n:0}); op.v[x.mesMov]+=val; op.tot+=val; op.n++;
+ps.forEach(p=>{ const kp=g+"||"+p; const op=zera(P[kp]=P[kp]||{g,p,v:{},tot:0,n:0,rateados:0}); op.v[x.mesMov]+=parte; op.tot+=parte; op.n++; if(ps.length>1) op.rateados++;
+const km=g+"||"+p+"||"+t; M[km]=(M[km]||0)+parte; });
+if(ps.length>1) RATEIOS.push({x,ps,parte});
 const ot=zera(T[t]=T[t]||{v:{},tot:0,n:0}); ot.v[x.mesMov]+=val; ot.tot+=val; ot.n++;
-const km=g+"||"+p+"||"+t; M[km]=(M[km]||0)+val;
 });
 const tot={}; ms.forEach(m=>tot[m]=Object.values(G).reduce((a,o)=>a+(o.v[m]||0),0));
 const total=Object.values(G).reduce((a,o)=>a+o.tot,0);
-return {ms,G,P,T,M,tot,total,n:L.length};
+return {ms,G,P,T,M,tot,total,n:L.length,rateios:RATEIOS};
 }
 /* --- adiantamentos de viagem (conta 25) --- */
 function adiantamentos(c){
@@ -1899,7 +1908,7 @@ ORDEM_GRUPO.forEach(g=>{ const o=d.G[g]; if(!o) return;
 l1.push({cells:[g].concat(ms.map(m=>o.v[m]||0)).concat([o.tot,PCT(o.tot/(d.total||1)),NUM(o.n)])}); });
 l1.push({cls:"tot",cells:["TOTAL DE VIAGENS E ESTADIAS"].concat(ms.map(m=>d.tot[m])).concat([d.total,PCT(1),NUM(d.n)])});
 w.appendChild(card("Viagens e estadias — resumo por grupo",tabela(hdr,l1),
-"Grupo definido pela categoria do lançamento; pessoa e tipo de gasto identificados no texto da descrição. Não inclui Locomoção MM, Locomoção EMT nem viagens de Missionários. Decápolis é atribuída ao Pr. FRANCISCO JOSÉ e JOÃO NUNES aparece somente como Diretor Internacional."));
+"Grupo definido pela categoria do lançamento; pessoa e tipo de gasto identificados no texto da descrição. Quando a descrição cita mais de uma pessoa (ex.: “VIAGEM PR JOEL SANTOS E HELIONILDO MOURA”), o valor é <b>rateado igualmente</b> entre elas. Não inclui Locomoção MM, Locomoção EMT nem viagens de Missionários. Decápolis é atribuída ao Pr. FRANCISCO JOSÉ e JOÃO NUNES aparece somente como Diretor Internacional."));
 { const a=adiantamentos(c);
 if(a.lista.length){
 const la=a.lista.map(o=>({cells:[o.p,o.env,-o.desp,-o.dev,o.saldo,NUM(o.n)]}));
@@ -1919,6 +1928,11 @@ l.push({cls:"sub",cells:["Subtotal "+g].concat(ms.map(m=>pes.reduce((a,o)=>a+(o.
 w.appendChild(card(g+" — por pessoa",tabela(["Pessoa"].concat(hdr.slice(1)),l)));
 w.appendChild(card("Gasto por pessoa — "+g,svgBarras(pes.slice().reverse().map(o=>({l:o.p,v:o.tot})),{horizontal:true,h:Math.max(200,pes.length*32+60)})));
 });
+if(d.rateios.length){ const rr=d.rateios.slice().sort((a,b)=>(a.x.mesMov-b.x.mesMov)||((a.x.diaMov||0)-(b.x.diaMov||0)));
+const lr=rr.map(o=>({cells:[(o.x.diaMov?String(o.x.diaMov).padStart(2,"0")+"/":"")+String(o.x.mesMov).padStart(2,"0")+"/"+o.x.anoMov,o.x.desc,o.ps.join(" + "),-o.x.valor,o.parte]}));
+lr.push({cls:"tot",cells:["TOTAL ("+NUM(rr.length)+" lançamentos)","","",rr.reduce((a,o)=>a-o.x.valor,0),""]});
+const tr=tabela(["Data","Descrição","Rateado entre","Valor total","Valor por pessoa"],lr); tr.firstChild.classList.add("tab-texto");
+w.appendChild(card("Viagens rateadas entre pessoas",tr,"Lançamentos cuja descrição cita mais de uma pessoa: o valor é dividido igualmente entre as pessoas citadas e cada uma recebe a sua parte nos quadros por pessoa (o nº de lançamentos conta o lançamento para cada pessoa).")); }
 const tp=TIPOS_ORDEM.filter(t=>d.T[t]).map(t=>[t,d.T[t]]);
 const l3=tp.map(x=>({cells:[x[0]].concat(ms.map(m=>x[1].v[m]||0)).concat([x[1].tot,PCT(x[1].tot/(d.total||1)),NUM(x[1].n)])}));
 l3.push({cls:"tot",cells:["TOTAL"].concat(ms.map(m=>d.tot[m])).concat([d.total,PCT(1),NUM(d.n)])});
