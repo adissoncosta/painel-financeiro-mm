@@ -1092,7 +1092,7 @@ return r;
 }
 /* adiantamentos de viagem: transferências que envolvem a conta 25 (envio do adiantamento e devolução do saldo não utilizado) */
 const ehAdiantViagem = x => { const ct=semAcento(x.conta), d=semAcento(x.desc);
-return ct.indexOf("ADIANTAMENTO DE VIAGE")>-1 || /^25\s*-/.test(ct) || d.indexOf("REQUERIMENTO PARA VIAGEM")>-1 || d.indexOf("RELATORIO DE VIAGEM")>-1; };
+return ct.indexOf("ADIANTAMENTO DE VIAGE")>-1 || /^25\s*-/.test(ct) || /(REQUERIMENTO|ADIANTAMENTO) (PARA|DE) VIAGE/.test(d) || d.indexOf("RELATORIO DE VIAGEM")>-1; };
 function somaEspecial(L,regra,ms){
 const r={}; ms.forEach(m=>r[m]=0);
 L.forEach(x=>{
@@ -1837,7 +1837,7 @@ return card("Lançamentos do período",v);
 }
 /* --- viagens e estadias --- */
 const GRUPOS_VIAGEM = [["VIAGENS E ESTADIAS DE DIRETORES","Diretoria"],["VIAGENS E ESTADIAS DE SUPERVISORES","Supervisão"],["VIAGENS ESTADIAS DO DIRETOR INTERNACIONAL","Diretor Internacional"],["VIAGENS E ESTADAS - DECAPOLIS","Decápolis"]];
-const PESSOAS_VIAGEM = [["JOEL","JOEL SANTOS"],["EDILENE","JOEL SANTOS"],["HELIONILDO","HELIONILDO MOURA"],["ELIAS TORRES","ELIAS TORRES"],["FRANCISCO JOS","FRANCISCO JOSÉ"],["HUDSON","HUDSON FERNANDES"],["JANDERSON","JANDERSON ALMEIDA"],["DIRANE","JOSÉ ROBERTO DIRANE"],["JOAO CARLOS","JOÃO CARLOS"],["NUNES","JOÃO NUNES"],["MICHAEL","MICHAEL LOPES"],["OSMARINA","OSMARINA SENA"],["SILVANO","SILVANO VIEIRA"],["RGIO COSTA","SÉRGIO COSTA"]];
+const PESSOAS_VIAGEM = [["JOEL","JOEL SANTOS"],["EDILENE","JOEL SANTOS"],["HELIONILDO","HELIONILDO MOURA"],["ELIAS TORRES","ELIAS TORRES"],["FRANCISCO JOS","FRANCISCO JOSÉ"],["HUDSON","HUDSON FERNANDES"],["JANDERSON","JANDERSON ALMEIDA"],["DIRANE","JOSÉ ROBERTO DIRANE"],["JOSE ROBERTO","JOSÉ ROBERTO DIRANE"],["JOAO CARLOS","JOÃO CARLOS"],["NUNES","JOÃO NUNES"],["MICHAEL","MICHAEL LOPES"],["OSMARINA","OSMARINA SENA"],["SILVANO","SILVANO VIEIRA"],["RGIO COSTA","SÉRGIO COSTA"]];
 const TIPOS_VIAGEM = [["PASSAGE","Passagens aéreas"],["BAGAGEM","Passagens aéreas"],["HOSPEDAGEM","Hospedagem"],["HOTEL","Hospedagem"],["COMBUST","Combustível"],["LANCHES","Alimentação"],["REFEI","Alimentação"],["ALIMENT","Alimentação"],["PED","Pedágio e estacionamento"],["ESTACIONAMENTO","Pedágio e estacionamento"],["LOCA","Veículo (locação/manutenção)"],["MANUTEN","Veículo (locação/manutenção)"],["LOCOMO","Locomoção urbana"],["UBER","Locomoção urbana"]];
 const ORDEM_GRUPO = ["Diretoria","Supervisão","Diretor Internacional","Decápolis"];
 const TIPOS_ORDEM = ["Passagens aéreas","Hospedagem","Combustível","Alimentação","Veículo (locação/manutenção)","Locomoção urbana","Pedágio e estacionamento","Outros"];
