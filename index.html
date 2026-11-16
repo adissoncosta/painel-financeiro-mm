@@ -530,6 +530,7 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 @media screen{.grid3.grid3-2{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)}}
 @media screen and (max-width:1250px){.grid3.grid3-2>.contasfin{grid-column:auto}}
 @media screen and (max-width:900px){.grid3.grid3-2{grid-template-columns:1fr}}
+.tab-sup2 td:nth-child(2),.tab-sup2 th:nth-child(2){text-align:left}
 </style>
 </head>
 <body>
@@ -2170,14 +2171,15 @@ return _grupoCat[semAcento(cat)]||"desp";
 }
 function custoIgrejas(c){
 const ms=periodoMeses(c), L=base(c,false).filter(x=>!ehTransf(x)), M={};
-const novo=k=>M[k]=M[k]||{ig:k,rec:0,custo:0,inv:0,desp:0,n:0,mes:{},lanc:[]};
+const novo=k=>M[k]=M[k]||{ig:k,rec:0,contrib:0,ofer:0,outras:0,custo:0,inv:0,desp:0,n:0,mes:{},lanc:[]};
 const mesO=(o,m)=>o.mes[m]=o.mes[m]||{rec:0,custo:0,inv:0,desp:0};
 let semIgreja=0; const semCat={};
 L.forEach(x=>{
 if(x.tipo==="Receita"){
-const dec=ehContaDecapolis(x.conta), nome=igrejaDe(x,c); if(!dec&&semAcento(nome).indexOf("IDPB")!==0) return;
-const k=dec?"MISSÃO DECÁPOLIS (base)":(igrejaNoTexto(nome)||nome), o=novo(k); /* receitas nas contas da Decápolis ficam com a própria missão */ o.rec+=x.valor; o.n++; mesO(o,x.mesMov).rec+=x.valor;
-o.lanc.push({x,tipo:"Receita",por:"cliente"}); return;
+const dec=ehContaDecapolis(x.conta), nome=igrejaDe(x,c); if(!dec&&(semAcento(nome).indexOf("IDPB")!==0||/^IDPB (MM|MINISTERIO DE MISSOES)$/.test(semAcento(nome).trim()))) return; /* o próprio MM não é igreja */
+const k=dec?"MISSÃO DECÁPOLIS (base)":(igrejaNoTexto(nome)||nome), o=novo(k); /* receitas nas contas da Decápolis ficam com a própria missão */
+const ct=semAcento(x.cat); if(!dec&&CATS_RELATORIO.indexOf(ct)>-1) o.contrib+=x.valor; else if(ct.indexOf("OFERTA")>-1) o.ofer+=x.valor; else o.outras+=x.valor;
+o.rec+=x.valor; o.n++; mesO(o,x.mesMov).rec+=x.valor; o.lanc.push({x,tipo:"Receita",por:"cliente"}); return;
 }
 /* viagens de supervisão/diretoria não são custo do local: ficam fora da atribuição às igrejas */
 const ehViagem=grupoDespesa(x.cat)!=="custo" && /VIAGE|ESTADIA|ESTADA/.test(semAcento(x.cat));
@@ -2188,44 +2190,72 @@ if(!k){ semIgreja+=v; semCat[x.cat||"(sem categoria)"]=(semCat[x.cat||"(sem cate
 const g=grupoDespesa(x.cat), o=novo(k); o[g]+=v; o.n++; mesO(o,x.mesMov)[g]+=v;
 o.lanc.push({x,tipo:g==="custo"?"Custo da missão":g==="inv"?"Investimento":"Outra despesa",por});
 });
-const lista=Object.values(M).map(o=>({...o,tot:o.custo+o.inv+o.desp,res:o.rec-(o.custo+o.inv+o.desp)}));
-return {ms,lista,semIgreja,semCat:Object.entries(semCat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
+const todas=Object.values(M).map(o=>{ const sup=o.ig.indexOf("DECÁPOLIS")>-1?"Base Decápolis":supDe(o.ig); return {...o,sup,dir:dirDe(sup),tot:o.custo+o.inv+o.desp,res:o.rec-(o.custo+o.inv+o.desp)}; });
+/* considera só as igrejas que mandam contribuições ao MM; as que mandam apenas ofertas e as obras sem contribuição ficam de fora */
+const lista=todas.filter(o=>o.contrib>0.005);
+const ehMissao=o=>o.ig.indexOf("DECÁPOLIS")>-1;
+const soOfertas=todas.filter(o=>o.contrib<=0.005&&o.ofer>0.005&&!ehMissao(o));
+const obras=todas.filter(o=>o.contrib<=0.005&&(o.ofer<=0.005||ehMissao(o))&&o.tot>0.005);
+return {ms,lista,todas,soOfertas,obras,semIgreja,semCat:Object.entries(semCat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
 }
 function viewCustoIgrejas(c){
 const d=custoIgrejas(c), w=el("div"), ms=d.ms;
-const T=k=>d.lista.reduce((a,o)=>a+o[k],0);
-const comCusto=d.lista.filter(o=>o.tot>0.005);
+const S=(arr,f)=>arr.reduce((a,o)=>a+o[f],0), T=f=>S(d.lista,f);
 const k=el("div","kpis");
-k.append(kpi("Custos das missões",T("custo"),"neg","Categorias dos grupos de CUSTOS do fluxo de caixa (2.1 Ministério de Missões, 2.2 Decápolis, 2.3 Internacional): assistência missionária, aluguel, manutenção de obra, doação de imóveis etc."),
-kpi("Investimentos",T("inv"),"alt","Categorias do grupo 2.01 Investimentos (terrenos)."),
-kpi("Outras despesas com o local",T("desp"),null,"Demais despesas cuja categoria ou descrição cita a igreja (ex.: tarifas de envio do repasse). Viagens de supervisão e da diretoria não entram."),
-kpi("Receitas das igrejas",T("rec"),"pos","Contribuições, dízimos e ofertas recebidos das igrejas (cliente do lançamento). As receitas que entram nas contas da Decápolis ficam com a Missão Decápolis."),
-kpi("Igrejas com custo ou despesa",NUM(comCusto.length)),
-kpi("Despesas não atribuídas a igrejas",d.semIgreja,null,"Despesas gerais do MM (administração, diretoria, eventos...) cuja categoria e descrição não citam nenhuma igreja, e todas as viagens e estadias de supervisores, diretores e missionários, que não são custo do local."));
+k.append(kpi("Igrejas consideradas",NUM(d.lista.length),null,"Igrejas que mandam contribuições ao MM no período (Contribuição Ministerial 7,5% ou 4,5%, Dízimo Pastoral Secular 90% ou Dízimo Secular)."),
+kpi("Recebido dessas igrejas",T("rec"),"pos","Contribuições + ofertas + outras receitas recebidas das igrejas consideradas."),
+kpi("Gasto com essas igrejas",T("tot"),"neg","Custos da missão + investimentos + outras despesas com o local. Viagens de supervisão e diretoria não entram."),
+kpi("Resultado",T("rec")-T("tot"),T("rec")-T("tot")<0?"neg":"pos","Recebido − gasto, somando as igrejas consideradas."),
+kpi("Igrejas fora (só ofertas)",NUM(d.soOfertas.length),"alt","Igrejas que mandam apenas ofertas missionárias, sem contribuição: não entram na comparação."),
+kpi("Despesas não atribuídas a igrejas",d.semIgreja,null,"Despesas gerais do MM e viagens de supervisores, diretores e missionários, que não são custo de uma igreja."));
 w.appendChild(k);
+const hdr=["Contribuições","Ofertas","Outras receitas","Total recebido","Custos da missão","Investimentos","Outras despesas","Total gasto","Resultado","Cobertura"];
+const vals=arr=>[S(arr,"contrib"),S(arr,"ofer"),S(arr,"outras"),S(arr,"rec"),S(arr,"custo"),S(arr,"inv"),S(arr,"desp"),S(arr,"tot"),S(arr,"rec")-S(arr,"tot"),S(arr,"tot")>0.005?PCT(S(arr,"rec")/S(arr,"tot")):"-"];
+/* --- por diretoria e supervisão --- */
+const LS=[], dirs=diretoriasMM();
+dirs.forEach((dn,i)=>{ const igD=d.lista.filter(o=>o.dir===dn); if(!igD.length) return; const s0=SUPERVISOES.find(o=>o.dir===dn);
+LS.push({cls:"g2",cells:[(i+1)+"  DIRETORIA "+dn.toUpperCase()+" — "+s0.diretor].concat(vals(igD)).concat([NUM(igD.length)])});
+SUPERVISOES.filter(x=>x.dir===dn).forEach(x=>{ const igS=d.lista.filter(o=>o.sup===x.rot); if(!igS.length) return; LS.push({ind:1,cells:[x.rot+" — "+(x.sup||x.nome)].concat(vals(igS)).concat([NUM(igS.length)])}); }); });
+const semSup=d.lista.filter(o=>dirs.indexOf(o.dir)<0); if(semSup.length) LS.push({cls:"g2",cells:["SEM SUPERVISÃO INFORMADA"].concat(vals(semSup)).concat([NUM(semSup.length)])});
+LS.push({cls:"tot",cells:["TOTAL"].concat(vals(d.lista)).concat([NUM(d.lista.length)])});
+w.appendChild(card("Custo x despesa por supervisão",tabela(["Diretoria / supervisão"].concat(hdr).concat(["Nº igrejas"]),LS),
+"Soma das igrejas consideradas (que mandam contribuições), agrupadas pela supervisão da aba Diretorias MM. Resultado = total recebido − total gasto; Cobertura = recebido ÷ gasto."));
+const sups=SUPERVISOES.map(x=>({x,ig:d.lista.filter(o=>o.sup===x.rot)})).filter(o=>o.ig.length);
+w.appendChild(card("Recebido x gasto por supervisão (R$)",svgBarras([].concat(...sups.map(o=>[{l:o.x.rot,v:S(o.ig,"rec"),c:"#22a447"},{l:"",v:S(o.ig,"tot"),c:"#e0364f"}])),{h:340}),
+"Barras verdes = total recebido das igrejas da supervisão; barras vermelhas = total gasto com elas."));
+/* --- por igreja --- */
 const ord=d.lista.slice().sort((a,b)=>b.tot-a.tot||b.rec-a.rec);
-const L=ord.filter(o=>o.tot>0.005).map(o=>({cells:[o.ig,o.custo,o.inv,o.desp,o.tot,o.rec,o.res,PCT(o.rec/(o.tot||1)),NUM(o.n)]}));
-L.push({cls:"tot",cells:["TOTAL DAS IGREJAS COM CUSTO",...["custo","inv","desp","tot","rec","res"].map(f=>comCusto.reduce((a,o)=>a+o[f],0)),PCT(comCusto.reduce((a,o)=>a+o.rec,0)/(comCusto.reduce((a,o)=>a+o.tot,0)||1)),NUM(comCusto.reduce((a,o)=>a+o.n,0))]});
-w.appendChild(card("Custo x despesa por igreja",tabela(["Igreja / obra","Custos da missão","Investimentos","Outras despesas","Total gasto","Receitas da igreja","Resultado","Cobertura","Nº lanç."],L),
-"A igreja é identificada primeiro pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b> (ex.: “PARCELA DO TERRENO EM CAMPO GRANDE”, “TAXA DE ENVIO - REPASSE PARA O CHILE”). Se a descrição citar mais de uma, vale a primeira citada. Catolé e Barbalha entram em Juazeiro do Norte. <b>Custos da missão</b> = categorias dos grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local (ex.: tarifas de envio). <b>As viagens e estadias de supervisores, diretores e missionários não entram</b>, mesmo quando a descrição cita a igreja visitada: elas ficam em “Despesas não atribuídas a igrejas”. Resultado = receitas recebidas da igreja − total gasto; Cobertura = receitas ÷ total gasto. As receitas das contas da Decápolis (ofertas de várias igrejas para a missão) ficam com a Missão Decápolis."));
+const L=ord.map(o=>({cells:[o.ig,o.sup+supNome(o.sup)].concat(vals([o])).concat([NUM(o.n)])}));
+L.push({cls:"tot",cells:["TOTAL DAS IGREJAS CONSIDERADAS",""].concat(vals(d.lista)).concat([NUM(S(d.lista,"n"))])});
+const tbI=tabela(["Igreja","Supervisão"].concat(hdr).concat(["Nº lanç."]),L);
+tbI.firstChild.classList.add("tab-sup2");
+w.appendChild(card("Custo x despesa por igreja",tbI,
+"Entram as igrejas que mandam <b>contribuições</b> ao MM (7,5%, 4,5%, Dízimo Pastoral 90% ou Dízimo Secular). A igreja da despesa é identificada pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b>. <b>Custos da missão</b> = grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local. Viagens de supervisores, diretores e missionários não entram."));
 const g=el("div","grid2");
-const top=comCusto.slice().sort((a,b)=>b.tot-a.tot).slice(0,15).reverse();
+const top=ord.filter(o=>o.tot>0.005).slice(0,15).reverse();
 g.appendChild(card("Total gasto por igreja (15 maiores)",svgBarras(top.map(o=>({l:o.ig.replace(/^IDPB /,""),v:o.tot,c:"#e0364f"})),{horizontal:true,w:700})));
 g.appendChild(card("Despesas não atribuídas a igrejas — por categoria",svgBarras(d.semCat.slice(0,15).reverse().map(o=>({l:o.k,v:o.v,c:"#94a3b8"})),{horizontal:true,w:700})));
 w.appendChild(g);
-const soRec=ord.filter(o=>o.tot<=0.005&&o.rec>0.005).sort((a,b)=>b.rec-a.rec);
-if(soRec.length) w.appendChild(card("Igrejas sem custo identificado no período (apenas receitas)",tabela(["Igreja","Receitas da igreja","Nº lanç."],soRec.map(o=>({cells:[o.ig,o.rec,NUM(o.n)]})).concat([{cls:"tot",cells:["TOTAL",soRec.reduce((a,o)=>a+o.rec,0),NUM(soRec.reduce((a,o)=>a+o.n,0))]}]))));
-/* detalhe de uma igreja */
+/* --- fora da comparação --- */
+if(d.soOfertas.length){ const so=d.soOfertas.slice().sort((a,b)=>b.ofer-a.ofer);
+const lo=so.map(o=>({cells:[o.ig,o.ofer,o.outras,o.tot,NUM(o.n)]})); lo.push({cls:"tot",cells:["TOTAL ("+NUM(so.length)+" igrejas)",S(so,"ofer"),S(so,"outras"),S(so,"tot"),NUM(S(so,"n"))]});
+w.appendChild(card("Igrejas fora da comparação — mandam apenas ofertas missionárias",tabela(["Igreja","Ofertas","Outras receitas","Gasto identificado","Nº lanç."],lo),
+"Não mandam contribuições ao MM no período (só ofertas missionárias), por isso não entram no custo x despesa. As ofertas que entram nas contas da Decápolis ficam com a Missão Decápolis.")); }
+if(d.obras.length){ const ob=d.obras.slice().sort((a,b)=>b.tot-a.tot);
+const lb=ob.map(o=>({cells:[o.ig,o.custo,o.inv,o.desp,o.tot,NUM(o.n)]})); lb.push({cls:"tot",cells:["TOTAL",S(ob,"custo"),S(ob,"inv"),S(ob,"desp"),S(ob,"tot"),NUM(S(ob,"n"))]});
+w.appendChild(card("Obras e missões com gasto, sem contribuição nem ofertas",tabela(["Obra / igreja","Custos da missão","Investimentos","Outras despesas","Total gasto","Nº lanç."],lb),
+"Locais que recebem recursos do MM mas não mandam contribuições: também ficam fora da comparação.")); }
+/* --- detalhe de uma igreja --- */
 const det=el("div","card"); det.appendChild(el("h3",null,"Detalhe por igreja"));
 const sel=el("select"); sel.style.minWidth="280px";
-const opcoes=ord.filter(o=>o.tot>0.005).concat(soRec);
+const opcoes=ord.concat(d.soOfertas,d.obras);
 if(!opcoes.find(o=>o.ig===IGREJA_SEL)) IGREJA_SEL=opcoes.length?opcoes[0].ig:"";
-opcoes.forEach(o=>{ const op=el("option",null,o.ig); op.value=o.ig; sel.appendChild(op); }); sel.value=IGREJA_SEL;
+opcoes.forEach(o=>{ const op=el("option",null,o.ig+(d.lista.indexOf(o)<0?" (fora da comparação)":"")); op.value=o.ig; sel.appendChild(op); }); sel.value=IGREJA_SEL;
 const lin=el("div","naoimprimir"); lin.style.cssText="display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap"; lin.appendChild(el("label",null,"Igreja")); lin.appendChild(sel); det.appendChild(lin);
 const corpo=el("div"); det.appendChild(corpo);
-const desenha=()=>{ corpo.innerHTML=""; const o=d.lista.find(x=>x.ig===IGREJA_SEL); if(!o) return;
+const desenha=()=>{ corpo.innerHTML=""; const o=d.todas.find(x=>x.ig===IGREJA_SEL); if(!o) return;
 const colsMes=ms.map(m=>MESES[m-1]+"/"+String(c.ano).slice(2)), Z=m=>o.mes[m]||{rec:0,custo:0,inv:0,desp:0};
-const lm=[["Receitas da igreja","rec"],["Custos da missão","custo"],["Investimentos","inv"],["Outras despesas","desp"]].filter(([r,f])=>o[f]>0.005).map(([r,f])=>({cells:[r].concat(ms.map(m=>f==="rec"?Z(m)[f]:-Z(m)[f])).concat([f==="rec"?o[f]:-o[f]])}));
+const lm=[["Recebido da igreja","rec"],["Custos da missão","custo"],["Investimentos","inv"],["Outras despesas","desp"]].filter(([r,f])=>o[f]>0.005).map(([r,f])=>({cells:[r].concat(ms.map(m=>f==="rec"?Z(m)[f]:-Z(m)[f])).concat([f==="rec"?o[f]:-o[f]])}));
 lm.push({cls:"tot",cells:["Resultado"].concat(ms.map(m=>{const z=Z(m);return z.rec-z.custo-z.inv-z.desp;})).concat([o.res])});
 corpo.appendChild(tabela(["Mês a mês"].concat(colsMes).concat(["Total"]),lm));
 const ll=o.lanc.filter(l=>l.tipo!=="Receita").sort((a,b)=>(a.x.mesMov-b.x.mesMov)||((a.x.diaMov||0)-(b.x.diaMov||0)));
