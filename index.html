@@ -1203,10 +1203,10 @@ const IGREJA_SUP = {
 "Oeste":["IDPB BRASILIA","IDPB CAMPO GRANDE","IDPB CUIABÁ","IDPB GOIANIRA","IDPB PALMAS"],
 "Sudeste":["IDPB RIO DE JANEIRO","IDPB SERRA - ES","IDPB VITÓRIA - ES"],
 "Sul":["IDPB CRICIUMA","IDPB ESTEIO","IDPB JOINVILLE","IDPB PALHOÇA","IDPB CURITIBA","IDPB FORQUILHINHA","IDPB BLUMENAU"],
-"Nordeste 01":["IDPB ÁGUA BRANCA","IDPB FORTALEZA","IDPB JUAZEIRO DO NORTE/CE","IDPB PARNAIBA","IDPB PINHEIRO","IDPB RUSSAS-CE","IDPB SÃO LUIS","IDPB TERESINA","IDPB TIANGUÁ","IDPB BARBALHA","IDPB CATOLÉ"],
-"Nordeste 02":["IDPB JOÃO PESSOA","IDPB NATAL","IDPB RECIFE","IDPB GARANHUNS","IDPB CAMPINA GRANDE","IDPB NAZARÉ DA MATA","IDPB SANTA RITA","IDPB MISSÃO VELHA"],
+"Nordeste 01":["IDPB ÁGUA BRANCA","IDPB FORTALEZA","IDPB JUAZEIRO DO NORTE/CE","IDPB PARNAIBA","IDPB PINHEIRO","IDPB RUSSAS-CE","IDPB SÃO LUIS","IDPB TERESINA","IDPB TIANGUÁ","IDPB BARBALHA","IDPB CATOLÉ","IDPB MISSÃO VELHA"],
+"Nordeste 02":["IDPB JOÃO PESSOA","IDPB NATAL","IDPB RECIFE","IDPB GARANHUNS","IDPB CAMPINA GRANDE","IDPB NAZARÉ DA MATA","IDPB SANTA RITA"],
 "Nordeste 03":["IDPB MACEIÓ","IDPB ARACAJU","IDPB PARATINGA","IDPB SALVADOR"]
-}; /* Blumenau: Região Sul (Pr. Michael Lopes); Missão Velha: Nordeste 02 (Pr. Hudson); Colômbia: Internacional; Santa Rita: Nordeste 02 (Pr. Hudson). Alfenas e Boa Vista: categoria Parcerias MM. Pr. Francisco José é diretor da Missão Decápolis (Nordeste 03 e Base Decápolis). Demais igrejas não listadas ficam em "Sem supervisão" */
+}; /* Blumenau: Região Sul (Pr. Michael Lopes); Missão Velha: Nordeste 01 (Pr. Silvano); Colômbia: Internacional; Santa Rita: Nordeste 02 (Pr. Hudson). Alfenas e Boa Vista: categoria Parcerias MM. Pr. Francisco José é diretor da Missão Decápolis (Nordeste 03 e Base Decápolis). Demais igrejas não listadas ficam em "Sem supervisão" */
 const SEM_SUP="Sem supervisão", SEM_DIR="Sem diretoria", PARC="Parcerias MM", PARC_CHAVES=["ALFENAS","BOA VISTA"], MAPA_SUP={};
 Object.keys(IGREJA_SUP).forEach(r=>IGREJA_SUP[r].forEach(ig=>MAPA_SUP[semAcento(ig)]=r));
 function supDe(ig){ const k=semAcento(MESMA_IGREJA[semAcento(ig)]||ig); if(MAPA_SUP[k]) return MAPA_SUP[k];
