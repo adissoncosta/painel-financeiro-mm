@@ -587,7 +587,7 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 </div>
 <div class="acoes">
 <button class="sec" id="btnSaldos">Saldos iniciais</button>
-<button class="sec" onclick="window.print()">Imprimir a aba atual</button>
+<button class="sec" id="btnPrintAba">Imprimir a aba atual</button>
 <button class="sec" id="btnPrintAll">Imprimir tudo em A4</button>
 <button class="sec" id="btnPrintSup">Imprimir por diretoria / supervisão</button>
 <button class="sec" id="btnExcel">Baixar em Excel</button>
@@ -2632,11 +2632,13 @@ mostraSalvo(res);
 document.getElementById("app").classList.remove("hide");
 document.getElementById("erro").classList.add("hide");
 montaTabs(); montaSaldos(); render();
+setTimeout(ofereceImpressaoPedida,300);
 ["ano","m1","m2","sit","cons"].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById("btnSaldos").onclick=()=>document.getElementById("cardSaldos").classList.toggle("hide");
-document.getElementById("btnPrintAll").onclick=imprimirTudo;
+document.getElementById("btnPrintAba").onclick=()=>pedirImpressao({tipo:"aba",aba:ABA});
+document.getElementById("btnPrintAll").onclick=()=>pedirImpressao({tipo:"tudo"});
 document.getElementById("btnPrintSup").onclick=()=>{ montaPrintSup(); document.getElementById("cardPrintSup").classList.toggle("hide"); };
-document.getElementById("btnPsGo").onclick=imprimirSup;
+document.getElementById("btnPsGo").onclick=()=>pedirImpressao({tipo:"sup",dir:document.getElementById("psDir").value,sup:document.getElementById("psSup").value});
 document.getElementById("btnPub").onclick=()=>{ document.getElementById("cardPub").classList.toggle("hide"); atualizaPub(); };
 document.getElementById("btnExcel").onclick=()=>{ baixarExcel().catch(e=>alert("Não foi possível gerar o Excel: "+e.message)); };
 }
@@ -2879,7 +2881,7 @@ window.addEventListener("afterprint",()=>document.body.classList.remove("imprimi
 document.getElementById("btnRecibos").addEventListener("click",()=>{ document.getElementById("cardRecibos").classList.toggle("hide"); montaRecibos(); });
 ["recDe","recAte","recConta","recTransf"].forEach(id=>document.getElementById(id).addEventListener("change",atualizaRecibos));
 document.getElementById("recConta").addEventListener("change",e=>{ try{ localStorage.setItem("mm_rec_conta",e.target.value); }catch(err){} });
-document.getElementById("btnRecGo").addEventListener("click",imprimirRecibos);
+document.getElementById("btnRecGo").addEventListener("click",()=>pedirImpressao({tipo:"recibos",de:document.getElementById("recDe").value,ate:document.getElementById("recAte").value,conta:document.getElementById("recConta").value,transf:document.getElementById("recTransf").checked}));
 document.getElementById("btnRecVer").addEventListener("click",()=>{ const l=document.getElementById("recLista"); l.classList.toggle("hide"); document.getElementById("btnRecVer").textContent=l.classList.contains("hide")?"Ver a lista":"Ocultar a lista"; atualizaRecibos(); });
 document.getElementById("recAssFile").addEventListener("change",e=>{ const f=e.target.files[0]; if(!f) return;
 const r=new FileReader(); r.onload=()=>{ try{ localStorage.setItem("mm_assinatura",r.result); }catch(err){ alert("Não foi possível salvar a assinatura neste navegador (imagem muito grande?)."); } atualizaRecibos();
@@ -2922,6 +2924,38 @@ location.hash="#k="+m[1];
 });
 document.getElementById("linkColado").addEventListener("keydown",e=>{ if(e.key==="Enter") document.getElementById("btnAbrirLink").click(); });
 })();
+/* ===== Impressão no app do iPhone =====
+   No app instalado na tela inicial do iPhone/iPad o sistema não permite imprimir (window.print não faz nada).
+   Nesse caso o painel abre o mesmo relatório no Safari, com os mesmos filtros, e mostra um botão "Imprimir agora". */
+const IOS=/iphone|ipad|ipod/i.test(navigator.userAgent)||(navigator.platform==="MacIntel"&&navigator.maxTouchPoints>1);
+const EM_APP=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+function filtrosAtuais(){ const c=cfg(); return {ano:c.ano,m1:c.m1,m2:c.m2,real:c.real,cons:c.cons}; }
+function aplicaFiltros(f){ if(!f) return; const set=(id,v)=>{ const e=document.getElementById(id); if(e&&v!==undefined){ if(e.type==="checkbox") e.checked=!!v; else e.value=String(v); } };
+set("ano",f.ano); set("m1",f.m1); set("m2",f.m2); set("sit",f.real?"real":"todos"); set("cons",f.cons); }
+function executaImpressao(sp){
+aplicaFiltros(sp.f);
+if(sp.tipo==="aba"){ if(sp.aba) ABA=sp.aba; montaTabs(); render(); setTimeout(()=>window.print(),150); }
+else if(sp.tipo==="tudo"){ render(); imprimirTudo(); }
+else if(sp.tipo==="sup"){ render(); montaPrintSup(); const d=document.getElementById("psDir"); d.value=sp.dir; d.onchange&&d.onchange(); document.getElementById("psSup").value=sp.sup; imprimirSup(); }
+else if(sp.tipo==="recibos"){ montaRecibos(); document.getElementById("recDe").value=sp.de; document.getElementById("recAte").value=sp.ate; document.getElementById("recConta").value=sp.conta; document.getElementById("recTransf").checked=!!sp.transf; atualizaRecibos(); imprimirRecibos(); }
+}
+function pedirImpressao(sp){
+sp.f=filtrosAtuais();
+if(!(IOS&&EM_APP)) return executaImpressao(sp);
+const k=chaveLink();
+if(!k) return alert("No app do iPhone a impressão é feita pelo Safari. Abra o painel no Safari (pelo link de consulta) e imprima por lá.");
+const url=location.origin+location.pathname+"#"+(window.MODO_GESTAO?"gerenciar&":"")+"k="+k+"&imp="+b64u.para(new TextEncoder().encode(JSON.stringify(sp)));
+if(confirm("No app do iPhone o sistema não permite imprimir.\n\nO relatório será aberto no Safari, com os mesmos filtros; lá toque em “Imprimir agora”."+(window.MODO_GESTAO&&ATUAL&&!ATUAL.compartilhado?"\n\nAtenção: o Safari usa o último extrato publicado.":""))) window.open(url,"_blank");
+}
+let PEDIDO_IMP=null;
+try{ const m=location.hash.match(/[#&]imp=([A-Za-z0-9_-]+)/); if(m) PEDIDO_IMP=JSON.parse(new TextDecoder().decode(b64u.de(m[1]))); }catch(e){ PEDIDO_IMP=null; }
+function ofereceImpressaoPedida(){
+if(!PEDIDO_IMP) return; const sp=PEDIDO_IMP; PEDIDO_IMP=null;
+aplicaFiltros(sp.f); if(sp.tipo==="aba"&&sp.aba){ ABA=sp.aba; montaTabs(); } render();
+const nomes={aba:"a aba "+((VIEWS.find(v=>v[0]===sp.aba)||[])[1]||""),tudo:"todos os relatórios em A4",sup:"o relatório por diretoria / supervisão",recibos:"os recibos de "+(sp.conta||"")};
+avisoPub("<span>Pronto para imprimir "+nomes[sp.tipo].replace(/</g,"&lt;")+".</span><button type='button' id='btnImpAgora'>Imprimir agora</button>","info");
+document.getElementById("btnImpAgora").onclick=()=>{ document.getElementById("avisoPub").style.display="none"; executaImpressao(sp); };
+}
 const drop=document.getElementById("drop");
 document.getElementById("file").addEventListener("change",e=>{ if(e.target.files[0]) carregar(e.target.files[0]); });
 drop.addEventListener("click",e=>{ if(e.target.id!=="file") document.getElementById("file").click(); });
