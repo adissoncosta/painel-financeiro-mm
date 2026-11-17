@@ -1767,13 +1767,6 @@ w.appendChild(card("Igrejas por diretoria / supervisão — filtro",fb));
 w.appendChild(card("Contribuições recebidas por mês (R$)",svgLinha(ms.map(m=>({l:MESES[m-1]+"/"+String(c.ano).slice(2),v:d.total[m]})),{h:360})));
 const topIg=d.linhas.filter(l=>l.cls==="g2").map(l=>({ig:l.ig,v:ms.reduce((a,m)=>a+(l.v[m]||0),0)})).sort((a,b)=>b.v-a.v).slice(0,15).reverse();
 w.appendChild(card("15 maiores igrejas contribuintes (R$)",svgBarras(topIg.map(o=>({l:o.ig,v:o.v})),{horizontal:true})));
-if(d.fora.length){
-const t=el("div");
-const linhas2=d.fora.map(([k,vv])=>({cells:[k,vv]}));
-linhas2.push({cls:"tot",cells:["TOTAL",d.fora.reduce((a,x)=>a+x[1],0)]});
-t.appendChild(tabela(["Contribuinte excluído","Total recebido"],linhas2));
-w.appendChild(card("Contribuintes fora do demonstrativo (sem 7,5% / 90%)",t));
-}
 return w;
 }
 function viewOfertas(c){
