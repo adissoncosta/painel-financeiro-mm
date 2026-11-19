@@ -531,6 +531,31 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 @media screen and (max-width:1250px){.grid3.grid3-2>.contasfin{grid-column:auto}}
 @media screen and (max-width:900px){.grid3.grid3-2{grid-template-columns:1fr}}
 .tab-sup2 td:nth-child(2),.tab-sup2 th:nth-child(2){text-align:left}
+.lanc-filtros{margin-bottom:12px}
+.lanc-filtros select{max-width:240px}
+.lanc-resumo{display:flex;flex-wrap:wrap;gap:8px 22px;margin:4px 0 12px;font-size:12.5px;color:#64748b}
+.lanc-resumo b{margin-left:6px;color:#1f2937;font-variant-numeric:tabular-nums}
+.tab-lanc td:nth-child(-n+6),.tab-lanc th:nth-child(-n+6){text-align:left}
+.tab-lanc td:nth-child(3){white-space:normal;min-width:260px}
+/* ===== tabelas no celular ===== */
+@media screen and (max-width:700px){
+.tab-mob thead{display:none}
+.tab-mob,.tab-mob tbody{display:block;width:100%}
+.scroll:has(.tab-mob){max-height:none;overflow:visible;border:0}
+.tab-mob tr{display:block;border:1px solid #e3e8ef;border-radius:10px;margin:0 0 8px;padding:8px 12px;background:#fff}
+.tab-mob tr.g1,.tab-mob tr.sub{background:#e9eef6}.tab-mob tr.g2{background:#f5f7fb}.tab-mob tr.tot{background:var(--navy);color:#fff}.tab-mob tr.sal{background:#fbf5e2}
+.tab-mob td{display:flex;justify-content:space-between;align-items:baseline;gap:12px;border:0!important;padding:3px 0!important;white-space:normal!important;text-align:right!important;background:transparent!important;min-width:0!important}
+.tab-mob td::before{content:attr(data-label);font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#64748b;text-align:left;flex:0 0 auto;max-width:48%}
+.tab-mob tr.tot td::before{color:#c5d2e8}
+.tab-mob td:first-child{display:block;font-weight:700;font-size:13.5px;text-align:left!important;padding-bottom:6px!important}
+.tab-mob td:first-child::before{content:none}
+.tab-mob td[data-vazio]{display:none}
+.tab-mob .ind{display:none}
+.tab-larga td:first-child,.tab-larga th:first-child{position:sticky;left:0;z-index:2;max-width:46vw;white-space:normal;box-shadow:1px 0 0 #e3e8ef}
+.tab-larga th:first-child{z-index:3}
+.tab-larga tr:not([class]) td:first-child{background:#fff}
+}
+@media print{.tab-mob td::before{content:none}}
 </style>
 </head>
 <body>
@@ -609,9 +634,9 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 <div class="note">Os dados são enviados <b>criptografados</b> (AES-256) para o repositório: quem abrir o site sem a chave vê apenas um arquivo ilegível. A chave fica no próprio link, depois do <b>#</b>, e essa parte nunca é enviada ao GitHub. Os saldos iniciais informados também são publicados. O token fica salvo só neste navegador; crie-o em GitHub → Settings → Developer settings → Fine-grained tokens, com acesso apenas ao repositório <b>painel-financeiro-mm</b> e permissão <b>Contents: Read and write</b>. Depois de publicar, a atualização aparece para todos em 1–2 minutos.</div>
 </div>
 <div class="card hide" id="cardSaldos">
-<h3>Saldos informados em 31/12 do ano anterior (âncora)</h3>
+<h3 id="saldosTit">Saldos informados em 31/12 do ano anterior (âncora)</h3>
 <div class="saldos" id="saldosBox"></div>
-<div class="note">Informe aqui apenas o saldo de fechamento de <b>31/12/2025</b> de cada conta. O painel calcula automaticamente o saldo anterior do período escolhido somando a movimentação dos meses anteriores — se você pedir setembro, o saldo anterior será o fechamento de agosto. Os valores ficam salvos neste navegador.</div>
+<div class="note">Informe aqui apenas o saldo de fechamento de <b id="saldosData">31/12/2025</b> de cada conta. Na virada do ano o painel calcula sozinho o fechamento de 31/12 (quando o extrato cobre o ano inteiro) e passa a usá-lo nos extratos do ano seguinte. O painel calcula automaticamente o saldo anterior do período escolhido somando a movimentação dos meses anteriores — se você pedir setembro, o saldo anterior será o fechamento de agosto. Os valores ficam salvos neste navegador.</div>
 </div>
 <div class="card hide so-gestao" id="cardRecibos">
 <h3>Recibos de entradas</h3>
@@ -678,7 +703,8 @@ const n=parseFloat(s);
 return isNaN(n)?0:(neg?-Math.abs(n):n);
 }
 const REALIZADAS = ["CONCILIADO","QUITADO","TRANSFERIDO"];
-const ANO_SALDO_BASE = 2025;
+let ANO_SALDO_BASE = 2025; /* ano da âncora em uso (31/12); escolhido automaticamente em iniciar() */
+let ANCORAS = {}; /* saldos de fechamento por conta em 31/12 de cada ano: {2025:{conta:valor}, 2026:{...}} */
 const CONSOLIDA = { "IDPB CATOLE":"IDPB JUAZEIRO DO NORTE/CE", "IDPB BARBALHA":"IDPB JUAZEIRO DO NORTE/CE" };
 const CAT = {
 c75:"CONTRIBUIÇÃO MINISTERIAL IDPB-MM 7,5%",
@@ -793,6 +819,7 @@ desc:["DESCRICAO","DESCRIÇÃO","HISTORICO","HISTÓRICO"],
 tipo:["TIPO"],
 conta:["CONTA BANCARIA","CONTA BANCÁRIA","CONTA"],
 valor:["VALOR (R$)","VALOR","VALOR R$"],
+saldoConta:["SALDO CONTA (R$)","SALDO CONTA","SALDO (R$)"],
 situacao:["SITUACAO","SITUAÇÃO"],
 comp:["DATA DE COMPETENCIA","DATA DE COMPETÊNCIA","COMPETENCIA","COMPETÊNCIA"],
 cat:["CATEGORIA 1","CATEGORIA"],
@@ -824,12 +851,14 @@ const t=mapCols(rows[i]);
 if(t.valor!==undefined && t.tipo!==undefined && t.dataMov!==undefined){ hi=i; idx=t; break; }
 }
 if(hi<0) throw new Error("Não encontrei as colunas obrigatórias (Data movimento, Tipo, Valor). Verifique se a planilha é o extrato financeiro padrão.");
-const out=[];
+const out=[]; let saldoAbertura=null, aberturaEm=null;
 for(let i=hi+1;i<rows.length;i++){
 const r=rows[i];
 if(!r || r.every(c=>norm(c)==="")) continue;
 const dm=parseData(r[idx.dataMov]);
 if(!dm) continue;
+/* saldo de abertura do extrato = "Saldo conta" da 1ª linha − o valor dessa linha */
+if(saldoAbertura===null&&idx.saldoConta!==undefined&&r[idx.saldoConta]!==""&&r[idx.saldoConta]!==null){ const sc=toNum(r[idx.saldoConta]); if(!isNaN(sc)){ saldoAbertura=Math.round((sc-toNum(r[idx.valor]))*100)/100; aberturaEm=dm; } }
 const dc=idx.comp!==undefined?parseData(r[idx.comp]):null;
 if(idx.cat!==undefined && semAcento(r[idx.cat])==="SALDO INICIAL") continue; /* abertura de conta: o saldo de partida vem dos "Saldos iniciais" do painel */
 out.push({
@@ -842,7 +871,7 @@ cat:norm(r[idx.cat]), cc:norm(r[idx.cc])||"(sem centro de custo)"
 });
 }
 if(!out.length) throw new Error("Nenhum lançamento com data válida foi encontrado.");
-return {lanc:out,aba:nomeAba,arquivo:nome};
+return {lanc:out,aba:nomeAba,arquivo:nome,saldoAbertura,aberturaEm};
 }
 function cfg(){
 return {
@@ -869,7 +898,7 @@ const mes = (r,porComp)=> porComp?r.mesComp:r.mesMov;
 const ehTransf = r => semAcento(r.cat).indexOf("TRANSFERENCIA")>-1;
 function tabela(cols,linhas,opt){
 opt=opt||{};
-const wrap=el("div","scroll"), t=el("table");
+const wrap=el("div","scroll"), t=el("table",cols.length<=8?"tab-mob":"tab-larga");
 const thead=el("thead"), trh=el("tr");
 cols.forEach(c=>{ const th=el("th",null,c); trh.appendChild(th); });
 thead.appendChild(trh); t.appendChild(thead);
@@ -877,7 +906,7 @@ const tb=el("tbody");
 linhas.forEach(L=>{
 const tr=el("tr",L.cls||null);
 L.cells.forEach((v,i)=>{
-const td=el("td");
+const td=el("td"); td.setAttribute("data-label",cols[i]||""); if(i>0&&(v===""||v===null||v===undefined||v==="-"||v===0)) td.setAttribute("data-vazio","1");
 if(i===0){ td.innerHTML = (L.ind?("<span class='ind' style='width:"+(L.ind*16)+"px'></span>"):"")+String(v); }
 else if(typeof v==="number"){ td.className="num"+(v<0?" neg":""); td.textContent=BRL(v); }
 else { td.className="num"; td.textContent=v; }
@@ -1327,7 +1356,12 @@ const adv=adiantamentos(c), aberto=adv.lista.filter(o=>Math.abs(o.saldo)>0.01);
 if(aberto.length) p.push("Adiantamentos de viagem aguardando prestação de contas (saldo na conta 25): "+aberto.map(o=>o.p+" "+BRL(o.saldo)).join("; ")+" — total de "+BRL(adv.saldo)+". As despesas da viagem devem ser lançadas na conta 25 e o saldo não utilizado devolvido.");
 }
 { const at=atrasos(c); if(at.igPend) p.push(NUM(at.igPend)+(at.igPend===1?" igreja está":" igrejas estão")+" com relatório de contribuição pendente ("+NUM(at.pend)+" "+(at.pend===1?"competência vencida":"competências vencidas")+" sem entrega)"+(at.nunca.length?", e "+NUM(at.nunca.length)+" não entregaram nenhum relatório no ano":"")+" — veja a aba Contribuições."); }
-const paradas=conta.filter(o=>o.n===0&&o.ini!==0).map(o=>o.conta);
+if(ANCORAS_AVISO) p.push(ANCORAS_AVISO);
+if(ATUAL&&ATUAL.saldoAbertura!==null&&ATUAL.saldoAbertura!==undefined&&ATUAL.aberturaEm&&ATUAL.aberturaEm.y===ANO_SALDO_BASE+1){
+const esperado=totalSaldos()+LANC.filter(x=>x.anoMov>ANO_SALDO_BASE&&realizado(x)&&(x.anoMov*10000+x.mesMov*100+(x.diaMov||1))<(ATUAL.aberturaEm.y*10000+ATUAL.aberturaEm.m*100+ATUAL.aberturaEm.d)).reduce((a,x)=>a+x.valor,0);
+if(Math.abs(esperado-ATUAL.saldoAbertura)>0.01) p.push("O saldo de abertura do extrato (coluna Saldo conta: "+BRL(ATUAL.saldoAbertura)+") difere do saldo inicial do painel ("+BRL(esperado)+") em "+BRL(ATUAL.saldoAbertura-esperado)+". Confira os Saldos iniciais de 31/12/"+ANO_SALDO_BASE+".");
+}
+const paradas=conta.filter(o=>o.n===0&&o.ini!==0&&o.conta.charAt(0)!=="(").map(o=>o.conta);
 if(paradas.length) p.push("Contas com saldo anterior e sem nenhum lançamento no período: "+paradas.join("; ")+".");
 const vt=base(c,false).filter(x=>semAcento(x.cat).indexOf("VALORES DE TERCEIROS")>-1);
 if(vt.length){
@@ -1426,7 +1460,9 @@ const g3=el("div","grid3 grid3-2");
 // contas financeiras
 const cf=el("div","card contasfin"); cf.appendChild(el("h3",null,"Contas financeiras"));
 const tot=ct.reduce((a,o)=>a+o.fim,0);
-const tv=el("div","cf-total"); tv.innerHTML='<div class="cx-valor">'+BRL(tot)+'</div><div class="cx-rot">Saldo total em '+MESES_LONGO[c.m2-1].toLowerCase()+'/'+c.ano+'</div>'; cf.appendChild(tv);
+const tv=el("div","cf-total"); const dts=base(c,false).map(x=>x.anoMov*10000+x.mesMov*100+(x.diaMov||1)), ultD=dts.length?Math.max(...dts):0, fimPer=c.ano*10000+c.m2*100+new Date(c.ano,c.m2,0).getDate();
+const rotSaldo=ultD&&ultD<fimPer?"Saldo até "+fmtDataN(ultD)+" (último lançamento)":"Saldo em "+fmtDataN(fimPer);
+tv.innerHTML='<div class="cx-valor">'+BRL(tot)+'</div><div class="cx-rot">'+rotSaldo+'</div>'; cf.appendChild(tv);
 const lst=el("div","cf-lista");
 ct.filter(o=>Math.abs(o.fim)>0.005||o.n).sort((a,b)=>b.fim-a.fim).forEach(o=>{
 const it=el("div","cf-item"); const nm=String(o.conta).replace(/^\d+\s*-\s*/,"");
@@ -1578,6 +1614,7 @@ const KP=[
 ["Receitas operacionais",T(rm,"recOp"),null,"Soma dos lançamentos do tipo <b>Receita</b> com data de movimento entre "+per+", exceto as categorias de <b>Transferência</b> entre contas."],
 ["Despesas operacionais",T(rm,"despOp"),null,"Soma (em valor absoluto) dos lançamentos do tipo <b>Despesa</b> com data de movimento entre "+per+", exceto as categorias de <b>Transferência</b> entre contas."],
 ["Resultado operacional",T(rm,"recOp")-T(rm,"despOp"),T(rm,"recOp")-T(rm,"despOp")<0?"neg":"pos","Receitas operacionais − Despesas operacionais = "+BRL(T(rm,"recOp"))+" − "+BRL(T(rm,"despOp"))+"."],
+["Resultado incluindo o Repasse da Nacional",T(rm,"recOp")-T(rm,"despOp")+repasses(c).T.ent_nac.tot,(T(rm,"recOp")-T(rm,"despOp")+repasses(c).T.ent_nac.tot)<0?"neg":"pos","Resultado operacional + Repasse da IDPB Nacional para o MM no período ("+BRL(repasses(c).T.ent_nac.tot)+"). O repasse é tratado como transferência no fluxo, por isso não entra no resultado operacional."],
 ["Saldo final das contas",ct.reduce((a,o)=>a+o.fim,0),null,"Para cada conta: saldo anterior da conta + entradas − saídas do período (data de movimento). O valor é a soma de todas as contas (aba Contas e saldos)."],
 ["Contribuições de igrejas",dm.ms.reduce((a,m)=>a+dm.total[m],0),null,"Total do Demonstrativo de contribuições: soma das categorias "+CATS_DEMO.join(", ")+" por <b>data de competência</b>, das "+dm.nIgrejas+" igrejas com lançamento em Contribuição 7,5% e/ou Dízimo Pastoral 90%."],
 ["Ofertas missionárias",of.total,null,"Soma das receitas nas categorias "+CATS_OFERTA.join(", ")+" por <b>data de competência</b> (aba Ofertas missionárias)."],
@@ -1815,23 +1852,41 @@ w.appendChild(card("15 maiores categorias de despesa — valor e % do total",svg
 w.appendChild(card("Resultado por centro de custo (R$)",svgBarras(cc.slice().sort((a,b)=>a.res-b.res).map(o=>({l:o.k,v:o.res,c:o.res<0?"#b42318":"#15803d"})),{horizontal:true})));
 return w;
 }
+let LANC_F={q:"",tipo:"",conta:"",cat:"",sit:""};
 function viewLanc(c){
-const L=base(c,false).slice().sort((a,b)=>a.mesMov-b.mesMov||a.cliente.localeCompare(b.cliente,"pt-BR"));
+const L=base(c,false).slice().sort((a,b)=>(a.anoMov-b.anoMov)||(a.mesMov-b.mesMov)||((a.diaMov||0)-(b.diaMov||0))||a.cliente.localeCompare(b.cliente,"pt-BR"));
 const v=el("div");
-const busca=el("input"); busca.type="text"; busca.placeholder="filtrar por texto…"; busca.style.marginBottom="8px"; busca.style.width="320px";
-const box=el("div");
-const render=()=>{
-const q=semAcento(busca.value);
-const f=q?L.filter(x=>semAcento(x.cliente+" "+x.desc+" "+x.cat+" "+x.conta+" "+x.cc).indexOf(q)>-1):L;
+const filtros=el("div","filtros lanc-filtros naoimprimir");
+const campo=(rot,ctrl)=>{ const d=el("div","campo"); d.appendChild(el("label",null,rot)); d.appendChild(ctrl); filtros.appendChild(d); return ctrl; };
+const busca=el("input"); busca.type="search"; busca.placeholder="nome, descrição, valor…"; busca.value=LANC_F.q; busca.style.minWidth="240px";
+campo("Buscar",busca);
+const sel=(rot,chave,vals)=>{ const s0=el("select"); [["","Todos"]].concat(vals.map(v=>[v,v])).forEach(([v,r])=>{ const o=el("option",null,r); o.value=v; s0.appendChild(o); }); s0.value=vals.indexOf(LANC_F[chave])>-1?LANC_F[chave]:""; LANC_F[chave]=s0.value; return campo(rot,s0); };
+const uniq=f=>[...new Set(L.map(f).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+const sTipo=sel("Tipo","tipo",uniq(x=>x.tipo));
+const sConta=sel("Conta","conta",uniq(x=>x.conta));
+const sCat=sel("Categoria","cat",uniq(x=>x.cat));
+const sSit=sel("Situação","sit",uniq(x=>x.situacao));
+const limpar=el("button","sec","Limpar filtros"); limpar.type="button"; const dl=el("div","campo"); dl.appendChild(el("label",null," ")); dl.appendChild(limpar); filtros.appendChild(dl);
+const resumo=el("div","lanc-resumo"), box=el("div");
+const desenha=()=>{
+LANC_F={q:busca.value,tipo:sTipo.value,conta:sConta.value,cat:sCat.value,sit:sSit.value};
+const q=semAcento(busca.value.trim()), qn=q.replace(/[^0-9,.]/g,"");
+const f=L.filter(x=>(!LANC_F.tipo||x.tipo===LANC_F.tipo)&&(!LANC_F.conta||x.conta===LANC_F.conta)&&(!LANC_F.cat||x.cat===LANC_F.cat)&&(!LANC_F.sit||x.situacao===LANC_F.sit)&&
+(!q||semAcento(x.cliente+" "+x.desc+" "+x.cat+" "+x.conta+" "+x.cc+" "+(x.doc||"")).indexOf(q)>-1||(qn&&qn.length>1&&BRL(x.valor).replace(/[^0-9,]/g,"").indexOf(qn.replace(".",""))>-1)));
+const ent=f.filter(x=>x.valor>0).reduce((a,x)=>a+x.valor,0), sai=f.filter(x=>x.valor<0).reduce((a,x)=>a+x.valor,0);
+resumo.innerHTML=""; [["Lançamentos",NUM(f.length)],["Entradas",BRL(ent)],["Saídas",BRL(sai)],["Saldo do filtro",BRL(ent+sai)]].forEach(([r,val])=>{ const d=el("div"); d.appendChild(el("span",null,r)); d.appendChild(el("b",null,val)); resumo.appendChild(d); });
 box.innerHTML="";
-const linhas=f.slice(0,3000).map(x=>({cells:[MESES[x.mesMov-1]+"/"+String(x.anoMov).slice(2),x.cliente||"—",x.cat||"(sem categoria)",x.conta,x.cc,x.situacao,x.valor]}));
-linhas.push({cls:"tot",cells:["TOTAL ("+NUM(f.length)+" lanç.)","","","","","",f.reduce((a,x)=>a+x.valor,0)]});
-box.appendChild(tabela(["Mês","Fornecedor/Cliente","Categoria","Conta","Centro de custo","Situação","Valor"],linhas));
-if(f.length>3000) box.appendChild(el("div","note","Exibindo os 3.000 primeiros de "+NUM(f.length)+" lançamentos."));
+const dt=x=>(x.diaMov?String(x.diaMov).padStart(2,"0")+"/":"")+String(x.mesMov).padStart(2,"0")+"/"+x.anoMov;
+const linhas=f.slice(0,2000).map(x=>({cells:[dt(x),x.cliente||"—",x.desc||"",x.cat||"(sem categoria)",x.conta,x.situacao,x.valor]}));
+linhas.push({cls:"tot",cells:["TOTAL ("+NUM(f.length)+" lanç.)","","","","","",ent+sai]});
+const t=tabela(["Data","Fornecedor/Cliente","Descrição","Categoria","Conta","Situação","Valor"],linhas); t.firstChild.classList.add("tab-lanc"); box.appendChild(t);
+if(f.length>2000) box.appendChild(el("div","note","Exibindo os 2.000 primeiros de "+NUM(f.length)+" lançamentos — use os filtros para refinar."));
 };
-busca.addEventListener("input",render);
-v.appendChild(busca); v.appendChild(box); render();
-return card("Lançamentos do período",v);
+let tm=null; busca.addEventListener("input",()=>{ clearTimeout(tm); tm=setTimeout(desenha,200); });
+[sTipo,sConta,sCat,sSit].forEach(s0=>s0.addEventListener("change",desenha));
+limpar.onclick=()=>{ busca.value=""; [sTipo,sConta,sCat,sSit].forEach(s0=>s0.value=""); desenha(); };
+v.appendChild(filtros); v.appendChild(resumo); v.appendChild(box); desenha();
+return card("Lançamentos do período",v,"Período e critério (realizados ou todos) da barra de filtros do topo. A busca procura no nome, descrição, categoria, conta, centro de custo, CNPJ/CPF e também pelo valor (ex.: 1.500).");
 }
 /* --- viagens e estadias --- */
 const GRUPOS_VIAGEM = [["VIAGENS E ESTADIAS DE DIRETORES","Diretoria"],["VIAGENS E ESTADIAS DE SUPERVISORES","Supervisão"],["VIAGENS ESTADIAS DO DIRETOR INTERNACIONAL","Diretor Internacional"],["VIAGENS E ESTADAS - DECAPOLIS","Decápolis"]];
@@ -1950,122 +2005,6 @@ w.appendChild(card(g+" — tipos de gasto por pessoa",tabela([rot].concat(TIPOS_
 });
 const pp={}; Object.values(d.P).filter(o=>o.g!=="Decápolis").forEach(o=>{ const x=pp[o.p]=pp[o.p]||{nome:o.p,v:[0],m:{}}; x.v[0]+=o.tot; ms.forEach(m=>x.m[m]=(x.m[m]||0)+(o.v[m]||0)); });
 blocoSup(w,{titulo:"Viagens e estadias",itens:Object.values(pp).map(o=>{ const sd=supPessoa(o.nome); return {nome:o.nome,sup:sd[0],dir:sd[1],v:o.v,m:o.m}; }),cols:["Total"],cores:["#22427a"],ms,ano:c.ano,rotItem:"Pessoa",rotItens:"pessoas",nota:"Gastos identificados pela pessoa (descrição). Vínculo pessoa → supervisão/diretoria conforme a aba Viagens e Estadias (colunas O:P, linha 351 em diante). Decápolis não entra neste quadro."});
-return w;
-}
-/* --- integração com o Claude (API da Anthropic) --- */
-const IA_SYS = "Você é um analista financeiro e de auditoria. Responda em português do Brasil, de forma objetiva e com números. Use EXCLUSIVAMENTE os dados do resumo fornecido; se algo não estiver no resumo, diga que não está disponível em vez de estimar. Quando citar valores, use o formato R$ 1.234,56.";
-function contextoIA(c){
-const rm=resumoMensal(c), f=fluxo(c), ct=porConta(c), of=ofertas(c), dm=demonstrativo(c), vg=viagens(c);
-const ms=f.ms, L=[];
-const T=(a,k)=>a.reduce((x,o)=>x+o[k],0);
-L.push("PERÍODO: "+MESES_LONGO[c.m1-1]+" a "+MESES_LONGO[c.m2-1]+" de "+c.ano+(c.real?" — apenas lançamentos realizados (Conciliado/Quitado)":" — todos os lançamentos, inclusive em aberto"));
-L.push("SALDO ANTERIOR (fechamento de "+rotuloMesAnterior(c)+"): "+BRL(saldoInicialTotal(c)));
-L.push("LANÇAMENTOS NO PERÍODO: "+NUM(base(c,false).length));
-L.push("");
-L.push("RESUMO MENSAL (mês | receitas oper. | despesas oper. | resultado do mês | saldo acumulado)");
-rm.forEach(o=>L.push(MESES_LONGO[o.m-1]+" | "+BRL(o.recOp)+" | "+BRL(o.despOp)+" | "+BRL(o.res)+" | "+BRL(o.saldo)));
-L.push("TOTAL DO PERÍODO | "+BRL(T(rm,"recOp"))+" | "+BRL(T(rm,"despOp"))+" | "+BRL(T(rm,"res"))+" | saldo final "+BRL(rm.length?rm[rm.length-1].saldo:0));
-L.push("");
-L.push("FLUXO DE CAIXA: recebimentos "+BRL(ms.reduce((a,m)=>a+f.rec[m],0))+"; pagamentos "+BRL(ms.reduce((a,m)=>a+f.pag[m],0))+"; saldo final de caixa "+BRL(f.saldoFim[ms[ms.length-1]]));
-L.push("");
-L.push("CONTAS BANCÁRIAS (conta | saldo anterior | entradas | saídas | saldo final)");
-ct.forEach(o=>L.push(o.conta+" | "+BRL(o.ini)+" | "+BRL(o.rec)+" | "+BRL(o.desp)+" | "+BRL(o.fim)));
-L.push("");
-L.push("MAIORES CATEGORIAS DE DESPESA (excluindo transferências)");
-agregaCategoria(c,"Despesa").filter(o=>semAcento(o.k).indexOf("TRANSFERENCIA")<0).slice(0,12).forEach(o=>L.push(o.k+" | "+BRL(o.v)));
-L.push("");
-L.push("MAIORES CATEGORIAS DE RECEITA (excluindo transferências)");
-agregaCategoria(c,"Receita").filter(o=>semAcento(o.k).indexOf("TRANSFERENCIA")<0).slice(0,12).forEach(o=>L.push(o.k+" | "+BRL(o.v)));
-L.push("");
-L.push("CONTRIBUIÇÕES DE IGREJAS: "+BRL(dm.ms.reduce((a,m)=>a+dm.total[m],0))+" de "+dm.nIgrejas+" igrejas");
-L.push("OFERTAS MISSIONÁRIAS: "+BRL(of.total)+" — por linha: "+of.porLinha.map(o=>o.k+" "+BRL(o.tot)).join("; "));
-L.push("Maiores contribuintes de ofertas: "+of.contrib.slice(0,8).map(o=>o.ig+" "+BRL(o.tot)).join("; "));
-L.push("");
-L.push("VIAGENS E ESTADIAS: total "+BRL(vg.total)+" em "+NUM(vg.n)+" lançamentos");
-ORDEM_GRUPO.forEach(g=>{ if(vg.G[g]) L.push("  grupo "+g+": "+BRL(vg.G[g].tot)+" ("+NUM(vg.G[g].n)+" lanç.)"); });
-Object.values(vg.P).sort((a,b)=>b.tot-a.tot).slice(0,10).forEach(o=>L.push("  pessoa "+o.p+" ("+o.g+"): "+BRL(o.tot)));
-TIPOS_ORDEM.forEach(t=>{ if(vg.T[t]) L.push("  tipo "+t+": "+BRL(vg.T[t].tot)); });
-L.push("");
-L.push("PONTOS DE ATENÇÃO JÁ IDENTIFICADOS PELO PAINEL:");
-pontos(c).forEach((p,i)=>L.push((i+1)+") "+p));
-return L.join("\n");
-}
-async function chamarClaude(chave,modelo,mensagens){
-const resp=await fetch("https://api.anthropic.com/v1/messages",{
-method:"POST",
-headers:{"content-type":"application/json","x-api-key":chave,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-body:JSON.stringify({model:modelo,max_tokens:1800,system:IA_SYS,messages:mensagens})
-});
-const j=await resp.json().catch(()=>({}));
-if(!resp.ok) throw new Error((j&&j.error&&j.error.message)?j.error.message:("falha HTTP "+resp.status));
-return (j.content||[]).filter(p=>p.type==="text").map(p=>p.text).join("\n").trim();
-}
-function viewIA(c){
-const w=el("div"), box=el("div","chatbox");
-const aviso=el("div","chave");
-aviso.innerHTML="A chave de API fica salva <b>somente neste navegador</b> (localStorage) e é enviada apenas para api.anthropic.com. Cada pergunta consome créditos da sua conta Anthropic. O painel envia junto o <b>resumo do período</b> (totais por mês, contas, categorias, ofertas e viagens) — não envia a lista de lançamentos.";
-box.appendChild(aviso);
-const l1=el("div","linha");
-l1.appendChild(el("label",null,"Chave de API"));
-const inK=el("input"); inK.type="password"; inK.placeholder="sk-ant-..."; inK.value=localStorage.getItem("mm_claude_key")||"";
-l1.appendChild(inK);
-l1.appendChild(el("label",null,"Modelo"));
-const inM=el("input"); inM.type="text"; inM.value=localStorage.getItem("mm_claude_model")||"claude-sonnet-5-5";
-l1.appendChild(inM);
-const bSalvar=el("button","sec","Salvar chave");
-bSalvar.onclick=()=>{ localStorage.setItem("mm_claude_key",inK.value.trim()); localStorage.setItem("mm_claude_model",inM.value.trim()); st.textContent="Chave e modelo salvos neste navegador."; };
-l1.appendChild(bSalvar);
-const bLimparK=el("button","sec","Apagar chave");
-bLimparK.onclick=()=>{ localStorage.removeItem("mm_claude_key"); inK.value=""; st.textContent="Chave apagada deste navegador."; };
-l1.appendChild(bLimparK);
-box.appendChild(l1);
-const q=el("textarea"); q.placeholder="Ex.: quais os três maiores riscos nas despesas deste período? / compare as viagens da Diretoria com as da Supervisão / o saldo das contas é suficiente para os próximos meses?";
-box.appendChild(q);
-const l2=el("div","linha");
-const bAsk=el("button",null,"Perguntar ao Claude");
-const bCtx=el("button","sec","Copiar o resumo enviado");
-const bClear=el("button","sec","Limpar conversa");
-const st=el("span","note","");
-l2.append(bAsk,bCtx,bClear,st);
-box.appendChild(l2);
-const msgs=el("div","msgs");
-box.appendChild(msgs);
-const hist=[];
-function bolha(quem,texto,cls){
-const d=el("div","msg "+cls); d.appendChild(el("div","who",quem));
-const p=el("div"); p.textContent=texto; d.appendChild(p);
-msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight;
-return p;
-}
-bCtx.onclick=()=>{ const t=contextoIA(cfg());
-if(navigator.clipboard) navigator.clipboard.writeText(t).then(()=>{ st.textContent="Resumo copiado ("+NUM(t.length)+" caracteres)."; });
-else st.textContent="Não foi possível copiar neste navegador."; };
-bClear.onclick=()=>{ hist.length=0; msgs.innerHTML=""; st.textContent="Conversa limpa."; };
-bAsk.onclick=async ()=>{
-const chave=inK.value.trim(), modelo=inM.value.trim()||"claude-sonnet-5-5", perg=q.value.trim();
-if(!chave){ st.textContent="Informe a chave de API da Anthropic."; return; }
-if(!perg){ st.textContent="Escreva a pergunta."; return; }
-localStorage.setItem("mm_claude_key",chave); localStorage.setItem("mm_claude_model",modelo);
-bolha("Você",perg,"u");
-q.value=""; bAsk.disabled=true; st.textContent="Consultando o Claude…";
-const alvo=bolha("Claude","…","a");
-try{
-const cc=cfg();
-const conteudo=(hist.length===0)?("Resumo dos dados do painel:\n\n"+contextoIA(cc)+"\n\nPergunta: "+perg):perg;
-hist.push({role:"user",content:conteudo});
-const txt=await chamarClaude(chave,modelo,hist);
-hist.push({role:"assistant",content:txt});
-alvo.textContent=txt;
-st.textContent="Resposta recebida.";
-}catch(e){
-alvo.textContent="Não foi possível obter resposta: "+e.message+"\n\nVerifique a chave, o nome do modelo e a conexão. Alguns navegadores bloqueiam a chamada quando o arquivo é aberto direto do disco (file://) — nesse caso use o botão “Copiar o resumo enviado” e cole no claude.ai.";
-st.textContent="Falha na consulta.";
-hist.pop();
-}
-bAsk.disabled=false;
-};
-w.appendChild(card("Perguntar ao Claude sobre estes relatórios",box,
-"O resumo do período é montado automaticamente a partir das abas do painel e enviado como contexto da primeira pergunta. As perguntas seguintes reaproveitam a mesma conversa."));
 return w;
 }
 /* --- repasses e transferências --- */
@@ -2371,8 +2310,7 @@ const VIEWS=[
 ["decapolis","Missão Decápolis",viewDecapolis],
 ["contas","Contas e saldos",viewContas],
 ["cats","Categorias e CC",viewCats],
-["lanc","Lançamentos",viewLanc],
-["ia","Perguntar ao Claude",viewIA]
+["lanc","Lançamentos",viewLanc]
 ];
 const GRUPOS_MENU=[
 ["",["painel"]],
@@ -2380,8 +2318,7 @@ const GRUPOS_MENU=[
 ["Contribuições e ofertas",["demo","comparativo","ofertas"]],
 ["Igrejas",["custoig"]],
 ["Despesas",["viagens","cats"]],
-["Missões",["decapolis"]],
-["Assistente",["ia"]]
+["Missões",["decapolis"]]
 ];
 const ICONES={
 painel:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
@@ -2418,12 +2355,13 @@ const v=VIEWS.find(x=>x[0]===ABA); document.getElementById("tituloAba").textCont
 montaNavApp(); document.body.classList.add("com-dados");
 }
 function montaSaldos(){
+{ const t=document.getElementById("saldosTit"), d=document.getElementById("saldosData"); if(t) t.textContent="Saldos de fechamento em 31/12/"+ANO_SALDO_BASE+" (âncora)"; if(d) d.textContent="31/12/"+ANO_SALDO_BASE; }
 const box=document.getElementById("saldosBox"); box.innerHTML="";
 const contas=[...new Set([...Object.keys(SALDOS),...LANC.map(x=>x.conta).filter(Boolean)])].sort((a,b)=>a.localeCompare(b,"pt-BR"));
 contas.forEach(k=>{
 const d=el("div"); d.appendChild(el("span",null,k));
 const i=el("input"); i.type="number"; i.step="0.01"; i.value=(+SALDOS[k]||0).toFixed(2);
-i.onchange=()=>{ SALDOS[k]=toNum(i.value); localStorage.setItem("mm_saldos",JSON.stringify(SALDOS)); render(); };
+i.onchange=()=>{ SALDOS[k]=toNum(i.value); ANCORAS[ANO_SALDO_BASE]=Object.assign({},SALDOS); Object.keys(ANCORAS).map(Number).filter(a=>a>ANO_SALDO_BASE).forEach(a=>delete ANCORAS[a]); try{ localStorage.setItem("mm_ancoras",JSON.stringify(ANCORAS)); }catch(e){} if(ANO_SALDO_BASE===2025) localStorage.setItem("mm_saldos",JSON.stringify(SALDOS)); render(); };
 d.appendChild(i); box.appendChild(d);
 });
 }
@@ -2613,7 +2551,43 @@ document.body.classList.add("printing");
 window.print();
 }
 window.addEventListener("afterprint",function(){ document.body.classList.remove("printing"); document.getElementById("printArea").innerHTML=""; });
+/* ===== Saldos de abertura automáticos (virada de ano) =====
+   Âncora = saldo de cada conta em 31/12 de um ano. A de 2025 é a informada em "Saldos iniciais".
+   Quando um extrato traz um ano inteiro já encerrado (de janeiro em diante), o painel calcula e guarda o fechamento
+   desse ano por conta; um extrato que comece no ano seguinte usa essa âncora automaticamente.
+   Se não houver âncora para o ano anterior ao extrato, usa o saldo de abertura do próprio extrato (coluna Saldo conta). */
+function ancorasSalvas(){ try{ return JSON.parse(localStorage.getItem("mm_ancoras")||"{}"); }catch(e){ return {}; } }
+function calculaAncoras(lanc){
+if(!lanc||!lanc.length) return;
+const anoAtual=new Date().getFullYear(), anos=[...new Set(lanc.map(x=>x.anoMov))].sort();
+anos.forEach(Y=>{
+if(Y>=anoAtual||ANCORAS[Y]||!ANCORAS[Y-1]) return;
+const doAno=lanc.filter(x=>x.anoMov===Y&&semAcento(x.cat)!=="SALDO INICIAL");
+if(!doAno.some(x=>x.mesMov===1)) return; /* o extrato precisa cobrir o ano desde janeiro */
+const f=Object.assign({},ANCORAS[Y-1]);
+doAno.forEach(x=>{ if(realizado(x)) f[x.conta]=Math.round(((+f[x.conta]||0)+x.valor)*100)/100; });
+ANCORAS[Y]=f;
+});
+}
+function montaAncoras(res,base2025){
+const anteriores=LANC_ANTERIOR;
+ANCORAS=Object.assign({},ancorasSalvas(),res.ancoras||{});
+ANCORAS[2025]=base2025; /* a de 2025 vem sempre dos Saldos iniciais */
+calculaAncoras(anteriores); calculaAncoras(LANC);
+const minAno=Math.min(...LANC.map(x=>x.anoMov));
+const cand=Object.keys(ANCORAS).map(Number).filter(a=>a<minAno).sort((a,b)=>b-a);
+ANCORAS_AVISO="";
+if(cand.length&&cand[0]===minAno-1){ ANO_SALDO_BASE=cand[0]; SALDOS=Object.assign({},ANCORAS[ANO_SALDO_BASE]); }
+else if(res.saldoAbertura!==null&&res.saldoAbertura!==undefined&&!cand.includes(minAno-1)&&minAno>2026){
+ANO_SALDO_BASE=minAno-1; SALDOS={"(saldo de abertura do extrato)":res.saldoAbertura};
+ANCORAS_AVISO="Não há saldos por conta de 31/12/"+(minAno-1)+" (o extrato começa em "+minAno+"). O painel usou o saldo total de abertura do próprio extrato ("+BRL(res.saldoAbertura)+"); os saldos por conta ficam só com a movimentação. Para ter os saldos por conta, carregue uma vez um extrato que cubra "+(minAno-1)+" inteiro.";
+}
+else { ANO_SALDO_BASE=cand.length?cand[0]:2025; SALDOS=Object.assign({},ANCORAS[ANO_SALDO_BASE]||base2025); }
+try{ localStorage.setItem("mm_ancoras",JSON.stringify(ANCORAS)); }catch(e){}
+}
+let LANC_ANTERIOR=null, ANCORAS_AVISO="";
 function iniciar(res){
+LANC_ANTERIOR=LANC&&LANC.length?LANC:null;
 LANC=res.lanc.filter(x=>semAcento(x.cat)!=="SALDO INICIAL"); /* abertura de conta do sistema (também em dados salvos antes deste ajuste) */
 const anos=[...new Set(LANC.map(x=>x.anoMov))].sort();
 const selA=document.getElementById("ano"); selA.innerHTML="";
@@ -2623,8 +2597,9 @@ const mm=[document.getElementById("m1"),document.getElementById("m2")];
 mm.forEach(s=>{ s.innerHTML=""; MESES_LONGO.forEach((n,i)=>{ const o=el("option",null,n); o.value=i+1; s.appendChild(o); }); });
 mm[0].value=1; mm[1].value=12;
 const salvo=localStorage.getItem("mm_saldos");
-SALDOS=res.saldos?Object.assign({},SALDOS_PADRAO,res.saldos):Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
-if(res.saldos) localStorage.setItem("mm_saldos",JSON.stringify(SALDOS));
+const base2025=res.saldos?Object.assign({},SALDOS_PADRAO,res.saldos):Object.assign({},SALDOS_PADRAO,salvo?JSON.parse(salvo):{});
+if(res.saldos) localStorage.setItem("mm_saldos",JSON.stringify(base2025));
+montaAncoras(res,base2025);
 if(res.assinatura){ try{ if(!localStorage.getItem("mm_assinatura")) localStorage.setItem("mm_assinatura",res.assinatura); }catch(e){} }
 if(!res.assinatura&&ATUAL&&ATUAL.assinatura) res.assinatura=ATUAL.assinatura;
 ATUAL=res;
@@ -2742,7 +2717,7 @@ if(!k){ if(opts.auto) return; if(!confirm("Nenhum link de consulta foi informado
 k=b64u.para(crypto.getRandomValues(new Uint8Array(32))); }
 st.textContent="Criptografando e enviando…";
 try{
-const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:SALDOS,assinatura:assinaturaRecibo()||undefined};
+const dados={lanc:ATUAL.lanc,aba:ATUAL.aba,arquivo:ATUAL.arquivo,salvoEm:new Date().toISOString(),saldos:ANCORAS[2025]||SALDOS,ancoras:ANCORAS,saldoAbertura:ATUAL.saldoAbertura,aberturaEm:ATUAL.aberturaEm,assinatura:assinaturaRecibo()||undefined};
 const bin=await cifrar(dados,k);
 const api="https://api.github.com/repos/"+REPO+"/contents/"+ARQ_DADOS;
 const h={"Authorization":"Bearer "+tok,"Accept":"application/vnd.github+json"};
