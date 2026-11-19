@@ -716,7 +716,10 @@ ofmm:"OFERTAS MISSIONARIAS MM",
 ofdec:"OFERTAS MISSIONARIAS DECAPOLIS",
 ofint:"OFERTAS MINISTÉRIO INTERNACIONAL"
 };
-const CATS_DEMO = [CAT.c75,CAT.dp90,CAT.c45,CAT.dsec,CAT.anu,CAT.ofmm,CAT.ofdec];
+/* contribuições = 7,5%, 4,5% e dízimos (mesma definição em todas as abas); ofertas e anuidades ficam à parte */
+const CATS_DEMO = [CAT.c75,CAT.dp90,CAT.c45,CAT.dsec];
+/* o Comparativo usa a base de 2025 da planilha antiga, montada com estas categorias */
+const CATS_COMP = [CAT.c75,CAT.dp90,CAT.c45,CAT.dsec,CAT.anu,CAT.ofmm,CAT.ofdec];
 const CATS_OFERTA = [CAT.ofmm,CAT.ofdec,CAT.ofint];
 const IGREJAS_FIXAS = ["IDPB RIO DE JANEIRO","IDPB SANTA RITA","IDPB MISSÃO VELHA"]; /* sempre exibidas no demonstrativo, mesmo sem recebimento */
 const SALDOS_PADRAO = {
@@ -2110,12 +2113,20 @@ function custoIgrejas(c){
 const ms=periodoMeses(c), L=base(c,false).filter(x=>!ehTransf(x)), M={};
 const novo=k=>M[k]=M[k]||{ig:k,rec:0,contrib:0,ofer:0,outras:0,custo:0,inv:0,desp:0,n:0,mes:{},lanc:[]};
 const mesO=(o,m)=>o.mes[m]=o.mes[m]||{rec:0,custo:0,inv:0,desp:0};
-let semIgreja=0; const semCat={};
+let semIgreja=0, CONTRIB_OUTRA=0; const semCat={};
+/* contribuições do período por competência (mesma base do Demonstrativo de contribuições) */
+base(c,true).forEach(x=>{ if(x.tipo!=="Receita"||ehTransf(x)||ehContaDecapolis(x.conta)||CATS_RELATORIO.indexOf(semAcento(x.cat))<0) return;
+const nome=igrejaDe(x,c); if(semAcento(nome).indexOf("IDPB")!==0||/^IDPB (MM|MINISTERIO DE MISSOES)$/.test(semAcento(nome).trim())) return;
+const o=novo(igrejaNoTexto(nome)||nome); o.contrib+=x.valor; o.rec+=x.valor; o.n++; mesO(o,x.mesComp).rec+=x.valor; o.lanc.push({x,tipo:"Receita",por:"cliente"}); });
 L.forEach(x=>{
 if(x.tipo==="Receita"){
 const dec=ehContaDecapolis(x.conta), nome=igrejaDe(x,c); if(!dec&&(semAcento(nome).indexOf("IDPB")!==0||/^IDPB (MM|MINISTERIO DE MISSOES)$/.test(semAcento(nome).trim()))) return; /* o próprio MM não é igreja */
 const k=dec?"MISSÃO DECÁPOLIS (base)":(igrejaNoTexto(nome)||nome), o=novo(k); /* receitas nas contas da Decápolis ficam com a própria missão */
-const ct=semAcento(x.cat); if(!dec&&CATS_RELATORIO.indexOf(ct)>-1) o.contrib+=x.valor; else if(ct.indexOf("OFERTA")>-1) o.ofer+=x.valor; else o.outras+=x.valor;
+const ct=semAcento(x.cat);
+if(!dec&&CATS_RELATORIO.indexOf(ct)>-1){
+/* contribuições contam pela competência (como na aba Contribuições); as de competência fora do período, pagas agora, vão para "outras" */
+if(x.anoComp===c.ano&&x.mesComp>=c.m1&&x.mesComp<=c.m2) return; o.outras+=x.valor; o.contribOutra=(o.contribOutra||0)+x.valor; CONTRIB_OUTRA+=x.valor; }
+else if(ct.indexOf("OFERTA")>-1) o.ofer+=x.valor; else o.outras+=x.valor;
 o.rec+=x.valor; o.n++; mesO(o,x.mesMov).rec+=x.valor; o.lanc.push({x,tipo:"Receita",por:"cliente"}); return;
 }
 /* viagens de supervisão/diretoria não são custo do local: ficam fora da atribuição às igrejas */
@@ -2133,7 +2144,7 @@ const lista=todas.filter(o=>o.contrib>0.005);
 const ehMissao=o=>o.ig.indexOf("DECÁPOLIS")>-1;
 const soOfertas=todas.filter(o=>o.contrib<=0.005&&o.ofer>0.005&&!ehMissao(o));
 const obras=todas.filter(o=>o.contrib<=0.005&&(o.ofer<=0.005||ehMissao(o))&&o.tot>0.005);
-return {ms,lista,todas,soOfertas,obras,semIgreja,semCat:Object.entries(semCat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
+return {ms,lista,todas,soOfertas,obras,semIgreja,contribOutra:CONTRIB_OUTRA,semCat:Object.entries(semCat).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v)};
 }
 function viewCustoIgrejas(c){
 const d=custoIgrejas(c), w=el("div"), ms=d.ms;
@@ -2189,7 +2200,7 @@ selCI.onchange=()=>{ CI_SUP=selCI.value; desenhaCI(); };
 desenhaCI();
 const corpoCI=el("div"); corpoCI.appendChild(filtroCI); corpoCI.appendChild(caixaCI);
 w.appendChild(card("Custo x despesa por igreja",corpoCI,
-"Entram as igrejas que mandam <b>contribuições</b> ao MM (7,5%, 4,5%, Dízimo Pastoral 90% ou Dízimo Secular). A igreja da despesa é identificada pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b>. <b>Custos da missão</b> = grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local. Viagens de supervisores, diretores e missionários não entram."));
+"Entram as igrejas que mandam <b>contribuições</b> ao MM (7,5%, 4,5%, Dízimo Pastoral 90% ou Dízimo Secular). As <b>contribuições contam pela competência</b>, igual à aba Contribuições; contribuições de competências anteriores pagas no período (ex.: dezembro/2025 pago em janeiro) entram em <b>Outras receitas</b>"+(d.contribOutra>0.005?" — "+BRL(d.contribOutra)+" no período":"")+". A igreja da despesa é identificada pela <b>categoria</b> do lançamento (ex.: “MANUTENÇÃO DE OBRA - TERESINA”) e, quando a categoria não cita nenhuma igreja, pela <b>descrição</b>. <b>Custos da missão</b> = grupos de custos do fluxo; <b>Investimentos</b> = terrenos; <b>Outras despesas</b> = demais despesas com o local. Viagens de supervisores, diretores e missionários não entram."));
 const g=el("div","grid2");
 const top=ord.filter(o=>o.tot>0.005).slice(0,15).reverse();
 g.appendChild(card("Total gasto por igreja (15 maiores)",svgBarras(top.map(o=>({l:o.ig.replace(/^IDPB /,""),v:o.tot,c:"#e0364f"})),{horizontal:true,w:700})));
@@ -2228,18 +2239,18 @@ const IGREJAS_MM=["IDPB ÁGUA BRANCA","IDPB ARACAJU","IDPB ARGENTINA","IDPB BRAS
 const CMP={a:{ano:0,m1:1,m2:6},b:{ano:0,m1:7,m2:12}};
 const rotPer=p=>MESES[p.m1-1]+"/"+String(p.ano).slice(2)+" a "+MESES[p.m2-1]+"/"+String(p.ano).slice(2); const rotCMP=()=>"Período A: "+rotPer(CMP.a)+"   ×   Período B: "+rotPer(CMP.b);
 function contribPeriodo(p){
-if(p.ano===2025&&BASE_2025){ const porIgreja={},porCat={}; let total=0; CATS_DEMO.forEach(k=>porCat[k]=(BASE_2025.categorias[k]||[]).reduce((a,v,i)=>a+((i+1>=p.m1&&i+1<=p.m2)?v:0),0)); Object.keys(BASE_2025.igrejas).filter(ig=>MM_SET.indexOf(semAcento(ig))>-1).forEach(ig=>{ const v=BASE_2025.igrejas[ig].reduce((a,x,i)=>a+((i+1>=p.m1&&i+1<=p.m2)?x:0),0); if(Math.abs(v)>0.005) porIgreja[ig]=v; }); total=Object.values(porCat).reduce((a,b)=>a+b,0); const totalMM=Object.values(porIgreja).reduce((a,b)=>a+b,0); return {porIgreja,porCat,total,totalMM,outros:total-totalMM,n:0,base:"2025 importada"}; }
-const keys=CATS_DEMO.map(semAcento);
+if(p.ano===2025&&BASE_2025){ const porIgreja={},porCat={}; let total=0; CATS_COMP.forEach(k=>porCat[k]=(BASE_2025.categorias[k]||[]).reduce((a,v,i)=>a+((i+1>=p.m1&&i+1<=p.m2)?v:0),0)); Object.keys(BASE_2025.igrejas).filter(ig=>MM_SET.indexOf(semAcento(ig))>-1).forEach(ig=>{ const v=BASE_2025.igrejas[ig].reduce((a,x,i)=>a+((i+1>=p.m1&&i+1<=p.m2)?x:0),0); if(Math.abs(v)>0.005) porIgreja[ig]=v; }); total=Object.values(porCat).reduce((a,b)=>a+b,0); const totalMM=Object.values(porIgreja).reduce((a,b)=>a+b,0); return {porIgreja,porCat,total,totalMM,outros:total-totalMM,n:0,base:"2025 importada"}; }
+const keys=CATS_COMP.map(semAcento);
 const porIgreja={}, porCat={};
-CATS_DEMO.forEach(k=>porCat[k]=0);
+CATS_COMP.forEach(k=>porCat[k]=0);
 let total=0, n=0;
 LANC.forEach(x=>{
 if(x.tipo!=="Receita"||!realizado(x)) return;
 if(x.anoComp!==p.ano||x.mesComp<p.m1||x.mesComp>p.m2) return;
 const ci=keys.indexOf(semAcento(x.cat)); if(ci<0) return;
-let ig=igrejaDe(x,{cons:true}); let igk=semAcento(ig); if(igk.indexOf("CATOLE")>-1||igk.indexOf("BARBALHA")>-1){ ig="IDPB JUAZEIRO DO NORTE/CE"; igk=semAcento(ig); } if(MM_SET.indexOf(igk)<0) { porCat[CATS_DEMO[ci]]+=x.valor; total+=x.valor; n++; return; }
+let ig=igrejaDe(x,{cons:true}); let igk=semAcento(ig); if(igk.indexOf("CATOLE")>-1||igk.indexOf("BARBALHA")>-1){ ig="IDPB JUAZEIRO DO NORTE/CE"; igk=semAcento(ig); } if(MM_SET.indexOf(igk)<0) { porCat[CATS_COMP[ci]]+=x.valor; total+=x.valor; n++; return; }
 porIgreja[ig]=(porIgreja[ig]||0)+x.valor;
-porCat[CATS_DEMO[ci]]+=x.valor;
+porCat[CATS_COMP[ci]]+=x.valor;
 total+=x.valor; n++;
 });
 const totalMM=Object.values(porIgreja).reduce((a,b)=>a+b,0); return {porIgreja,porCat,total,totalMM,outros:total-totalMM,n};
@@ -2285,12 +2296,12 @@ l1.push({cls:"sub",cells:["Outros contribuintes (fora da lista do MM)",A.outros,
 l1.push({cls:"tot",cells:["TOTAL GERAL",A.total,B.total,A.total-B.total,varPct(A.total,B.total)]});
 alvo.appendChild(card("Comparativo por igreja — somente igrejas do Ministério de Missões",tabela(["Igreja","Período A ("+rotPer(CMP.a)+")","Período B ("+rotPer(CMP.b)+")","Variação (A-B)","Variação %"],l1),"Lista com as "+IGREJAS_MM.length+" igrejas do MM; Catolé e Barbalha entram em Juazeiro do Norte e a base Decápolis não entra. "+(A.base||B.base?"Os valores de 2025 vêm da base importada do extrato financeiro 2025.":"")));
 blocoSup(alvo,{titulo:"Comparativo de contribuições",itens:igrejas.map(ig=>itemIgreja(ig,[A.porIgreja[ig]||0,B.porIgreja[ig]||0])),cols:["Período A","Período B"],cores:["#22427a","#a5a5a5"],var:true});
-const l2=CATS_DEMO.map(cat=>{ const a=A.porCat[cat]||0, b=B.porCat[cat]||0;
+const l2=CATS_COMP.map(cat=>{ const a=A.porCat[cat]||0, b=B.porCat[cat]||0;
 return {cells:[cat,a,b,a-b,varPct(a,b)]}; });
 l2.push({cls:"tot",cells:["TOTAL",A.total,B.total,A.total-B.total,varPct(A.total,B.total)]});
 alvo.appendChild(card("Comparativo por categoria de contribuição",tabela(["Categoria","Período A ("+rotPer(CMP.a)+")","Período B ("+rotPer(CMP.b)+")","Variação (A-B)","Variação %"],l2)));
 alvo.appendChild(card("Total por categoria — Período A x Período B",
-svgBarras([].concat(...CATS_DEMO.map(cat=>[{l:cat.slice(0,18),v:A.porCat[cat]||0,c:"#22427a"},{l:"",v:B.porCat[cat]||0,c:"#8a6d00"}])),{h:340})));
+svgBarras([].concat(...CATS_COMP.map(cat=>[{l:cat.slice(0,18),v:A.porCat[cat]||0,c:"#22427a"},{l:"",v:B.porCat[cat]||0,c:"#8a6d00"}])),{h:340})));
 const maiores=igrejas.map(ig=>({ig,d:(A.porIgreja[ig]||0)-(B.porIgreja[ig]||0)})).sort((x,y)=>x.d-y.d);
 alvo.appendChild(card("Variação por igreja (A - B)",svgBarras(maiores.map(o=>({l:o.ig.replace("IDPB ",""),v:o.d,c:o.d<0?"#b42318":"#15803d"})),{horizontal:true,h:Math.max(300,maiores.length*26+60)})));
 }
