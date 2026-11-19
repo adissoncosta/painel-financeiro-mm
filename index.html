@@ -589,7 +589,7 @@ body.imprimindo-recibos #printArea .recibo{position:relative;width:600pt;height:
 <button class="sec" id="btnSaldos">Saldos iniciais</button>
 <button class="sec" id="btnPrintAba">Imprimir a aba atual</button>
 <button class="sec" id="btnPrintAll">Imprimir tudo em A4</button>
-<button class="sec" id="btnPrintSup">Imprimir por diretoria / supervisão</button>
+<button class="sec" id="btnPrintSup">Imprimir contribuições por supervisão</button>
 <button class="sec" id="btnExcel">Baixar em Excel</button>
 <button class="sec so-gestao" id="btnRecibos">Gerar recibos</button>
 <button id="btnPub">Publicar no link</button>
@@ -2400,6 +2400,8 @@ custoig:'<path d="M12 2l3 4h-6zM6 22V10l6-4 6 4v12M10 22v-5h4v5"/>',
 decapolis:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
 ia:'<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z"/>'
 };
+/* ao trocar de aba, fecha os quadros de ação abertos (saldos, impressão por supervisão, recibos), que não pertencem à aba */
+function fechaPaineis(){ ["cardSaldos","cardPrintSup","cardRecibos"].forEach(id=>{ const e=document.getElementById(id); if(e) e.classList.add("hide"); }); }
 function montaTabs(){
 const t=document.getElementById("tabs"); t.innerHTML="";
 GRUPOS_MENU.forEach(([gr,ks])=>{
@@ -2408,7 +2410,7 @@ ks.forEach(k=>{ const v=VIEWS.find(x=>x[0]===k); if(!v) return;
 const b=el("button",k===ABA?"on":null); b.type="button";
 b.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONES[k]||"")+'</svg><span></span>';
 b.querySelector("span").textContent=v[1];
-b.onclick=()=>{ ABA=k; montaTabs(); render(); document.body.classList.remove("menu-aberto"); window.scrollTo(0,0); };
+b.onclick=()=>{ ABA=k; fechaPaineis(); montaTabs(); render(); document.body.classList.remove("menu-aberto"); window.scrollTo(0,0); };
 t.appendChild(b);
 });
 });
@@ -2893,7 +2895,7 @@ function montaNavApp(){
 const n=document.getElementById("navApp"); if(!n) return; n.innerHTML="";
 NAV_APP.forEach(([k,rot])=>{ const b=el("button",k===ABA?"on":null); b.type="button";
 b.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+(ICONES[k]||"")+'</svg><span></span>';
-b.querySelector("span").textContent=rot; b.onclick=()=>{ ABA=k; montaTabs(); render(); window.scrollTo(0,0); }; n.appendChild(b); });
+b.querySelector("span").textContent=rot; b.onclick=()=>{ ABA=k; fechaPaineis(); montaTabs(); render(); window.scrollTo(0,0); }; n.appendChild(b); });
 const m=el("button",NAV_APP.some(x=>x[0]===ABA)?null:"on"); m.type="button";
 m.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Mais</span>';
 m.onclick=()=>document.body.classList.add("menu-aberto"); n.appendChild(m);
